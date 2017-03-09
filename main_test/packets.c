@@ -32,17 +32,8 @@ UMPACKET create_umpacket(uint8_t src, uint8_t dst, uint8_t size, uchar *payload)
 	UMPACKET packet;
 	
 	packet.preamble = UMPACKET_PREAMBLE;
-	
-	//if(src > MAX_ADDRESS || dst > MAX_ADDRESS)
-	//	printf("*WARNING* create_umpacket: src or dst size is greater than %d. Expect overflow!\n", MAX_ADDRESS);
-	
 	packet.src = src;
 	packet.dst = dst;
-	
-	
-	//if(size > MAX_PAYLOAD_SIZE)
-	//	printf("*WARNING* create_umpacket: payload size is greater than %d. Expect overflow!\n", MAX_PAYLOAD_SIZE);
-	
 	packet.size = size;
 	packet.payload = payload;
 	

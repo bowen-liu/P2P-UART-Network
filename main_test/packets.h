@@ -25,12 +25,6 @@
 #define STREAM_SIZE_WIDTH			16
 #define ID_WIDTH					16
 
-//maximum numerical values support by user configurable header fields
-#define MAX_ADDRESS					(1 << ADDRESS_WIDTH) - 1 
-#define MAX_PAYLOAD_SIZE			(1 << PAYLOAD_SIZE_WIDTH) - 1 
-#define MAX_STREAM_SIZE				(1 << STREAM_SIZE_WIDTH) - 1 
-#define MAX_ID						(1 << ID_WIDTH) - 1 
-
 
 //header size in bytes
 #define UMPACKET_HEADER_SIZE 		(PREAMBLE_WIDTH + 2*ADDRESS_WIDTH + PAYLOAD_SIZE_WIDTH) /8
@@ -94,7 +88,6 @@ typedef struct {
 	unsigned char *payload;
 	
 } __attribute__((packed)) RSPACKET;
-
 
 
 //Must add this for Arduino IDE to link functions in c headers

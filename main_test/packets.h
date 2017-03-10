@@ -15,6 +15,10 @@
 
 #define PACKET_POSTAMBLE  			0x97 			//ETB with 8th bit set to 1
 
+//"Start of Text" and "End of Text" ASCII character that wraps around payload
+#define STX 0x2   
+#define ETX 0x3
+
 //bit widths for all packet header fields that are shared across all packet types
 #define PREAMBLE_WIDTH				16
 #define ADDRESS_WIDTH 				4 
@@ -26,10 +30,20 @@
 #define ID_WIDTH					16
 
 
+
+//maximum numerical values support by user configurable header fields
+#define MAX_ADDRESS          (1 << ADDRESS_WIDTH) - 1 
+#define MAX_PAYLOAD_SIZE      (1 << PAYLOAD_SIZE_WIDTH) - 1 
+#define MAX_STREAM_SIZE       (1 << STREAM_SIZE_WIDTH) - 1 
+#define MAX_ID            (1 << ID_WIDTH) - 1 
+
 //header size in bytes
 #define UMPACKET_HEADER_SIZE 		(PREAMBLE_WIDTH + 2*ADDRESS_WIDTH + PAYLOAD_SIZE_WIDTH) /8
 #define USPACKET_HEADER_SIZE 		(PREAMBLE_WIDTH + 2*ADDRESS_WIDTH + ID_WIDTH + 2*STREAM_SIZE_WIDTH + PAYLOAD_SIZE_WIDTH) /8
 #define RSPACKET_HEADER_SIZE 		(PREAMBLE_WIDTH + 2*ADDRESS_WIDTH + ID_WIDTH + STREAM_SIZE_WIDTH + CHECKSUM_WIDTH) /8
+
+
+
 
 
 typedef unsigned char uchar;

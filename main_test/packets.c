@@ -21,7 +21,6 @@ void print_bytes(uchar *buf, size_t bytes)
 
 
 
-
 /***************************
 Unreliable Message Packets
 ***************************/

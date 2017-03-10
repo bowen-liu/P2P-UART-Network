@@ -1,27 +1,27 @@
-#ifndef _UARTNET_PEERAPIH_
-#define _UARTNET_PEERAPIH_
+#ifndef _UARTNET_TRANSPORTH_
+#define _UARTNET_TRANSPORTH_
 
 #include "packets.h"
-
-//maximum numerical values support by user configurable header fields
-#define MAX_ADDRESS					(1 << ADDRESS_WIDTH) - 1 
-#define MAX_PAYLOAD_SIZE			(1 << PAYLOAD_SIZE_WIDTH) - 1 
-#define MAX_STREAM_SIZE				(1 << STREAM_SIZE_WIDTH) - 1 
-#define MAX_ID						(1 << ID_WIDTH) - 1 
 
 //Max concurrent connections
 #define MAX_INBOUND_STREAMS			MAX_ADDRESS + 1
 #define MAX_OUTBOUND_STREAMS		MAX_ADDRESS + 1
+#define MAX_RECEIVED_BUF        8
 
 
 //Generic Packet datatype used to return a newly received packet
-typedef union {
+
+enum PACKET_TYPE {INVALID = 0, UMPACKET_TYPE, USPACKET_TYPE, RSPACKET_TYPE};
+
+typedef struct {
+  
+  enum PACKET_TYPE type;
 	
 	UMPACKET umpacket;
 	USPACKET uspacket;
 	RSPACKET rspacket;
 	
-}PACKET_RAW;
+}RECEIVED_PACKET;
 
 
 //Connection states for inbound/outbound stream connections
@@ -52,11 +52,13 @@ typedef struct {
 extern "C" {
 #endif
 
+void transport_initialize();
+
+int parse_recvd_packet(uchar *buf, size_t bytes);
+
 int send_umessage(uint8_t src, uint8_t dst, uint8_t size, uchar *data);
 int send_ustream(uint8_t src, uint8_t dst, uint8_t size, uchar *data);
 int send_rstream(uint8_t src, uint8_t dst, uint8_t size, uchar *data);
-
-int parse_recvd_packet(PACKET_RAW *buf);
 
 
 #ifdef __cplusplus

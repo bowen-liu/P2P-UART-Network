@@ -235,18 +235,24 @@ int add_to_send_queue(RAW_PACKET raw, LINK *link)
 
 int transmit_next(LINK *link)
 {
-  int i;
+  int i, j;
 
   //Check if we have anything to transmit
   if(link->squeue_pending == 0)
-    return -1;
+    return 0;
 
-  //Find the next packet to transmit
-  for(i=0; i<SEND_QUEUE_SIZE; i++)
+  //Find the next packet to transmit, starting from the last sending index
+  for(i = link->squeue_lastsent, j=0; j<SEND_QUEUE_SIZE; j++)
+  {
+    //Wrap index i around to the beginning if needed
+    if(i >= SEND_QUEUE_SIZE - 1) i = 0;
+    else if (i < SEND_QUEUE_SIZE - 1) i++;
+
     if(link->send_queue[i].size > 0) break;
+  }
 
   //TODO:Transmit the packet
-  printf("PRETENDING to transmit: ");
+  printf("PRETENDING to transmit: %d ", i);
   print_bytes(link->send_queue[i].buf, link->send_queue[i].size);
 
   //cleanup & mark this slot as free

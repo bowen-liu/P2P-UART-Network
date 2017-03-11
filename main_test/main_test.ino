@@ -87,6 +87,8 @@ void switch_task()
   RAW_PACKET raw;
 
   printf("Switch is starting...\n");
+
+  int j = 0;
   
   while(1)
   {
@@ -108,10 +110,27 @@ void switch_task()
             proc_buf(NULL, 0, &links[i]);
             raw = extract_packet_from_rbuf(&links[i]);
          }
+         
+      /*
+           if(j >= 5) 
+           {
+            transmit_next(&links[0]);
+            j = 0;
+           }
+     */
+         
        }
+       
        //Transmit a packet in the sending queue, if any
        transmit_next(&links[i]);
      }
+
+     
+
+
+
+     j++;
+     
   }
 }
 

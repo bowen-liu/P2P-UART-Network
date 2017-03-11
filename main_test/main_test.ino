@@ -36,18 +36,18 @@ void setup()
 void probe_all()
 {
   
-  //create_umpacket(0, MAX_ADDRESS, sizeof(PROBE_MSG), PROBE_MSG);
+  //create_frame(0, MAX_ADDRESS, sizeof(PROBE_MSG), PROBE_MSG);
 }
 
 
-void proc_raw_packets(RAW_PACKET raw, LINK *link)
+void proc_raw_frames(RAW_FRAME raw, LINK *link)
 {
   uint16_t preamble = *((uint16_t*)&raw.buf[0]);
   uint8_t dest = ((*((uint8_t*) &raw.buf[2])) >> 4);
   int i;
 
   //Is this packet intended for the switch itself?
-  if(preamble == UMPACKET_PREAMBLE && dest == 0)
+  if(preamble == FRAME_PREAMBLE && dest == 0)
   {
     printf("Link Packet!\n");
     
@@ -84,11 +84,9 @@ void switch_task()
 {
   int i;
   size_t bytes;
-  RAW_PACKET raw;
+  RAW_FRAME rawframe;
 
   printf("Switch is starting...\n");
-
-  int j = 0;
   
   while(1)
   {
@@ -101,35 +99,20 @@ void switch_task()
        //Check if buffer contains one or more complete packets
        if(bytes > 0 || links[i].rbuf_valid)
        {
-         raw = extract_packet_from_rbuf(&links[i]);
-         while(raw.size > 0)
+         rawframe = extract_frame_from_rbuf(&links[i]);
+         while(rawframe.size > 0)
          {
-            proc_raw_packets(raw, &links[i]);
+            proc_raw_frames(rawframe, &links[i]);
   
             //Check if the rbuf contains more complete packets
             proc_buf(NULL, 0, &links[i]);
-            raw = extract_packet_from_rbuf(&links[i]);
+            rawframe = extract_frame_from_rbuf(&links[i]);
          }
-         
-      /*
-           if(j >= 5) 
-           {
-            transmit_next(&links[0]);
-            j = 0;
-           }
-     */
-         
        }
        
        //Transmit a packet in the sending queue, if any
        transmit_next(&links[i]);
      }
-
-     
-
-
-
-     j++;
      
   }
 }

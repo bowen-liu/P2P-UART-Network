@@ -11,6 +11,7 @@
 
 //Generic Packet datatype used to return a newly received packet
 
+
 enum PACKET_TYPE {INVALID = 0, UMPACKET_TYPE, USPACKET_TYPE, RSPACKET_TYPE};
 
 typedef struct {
@@ -22,6 +23,7 @@ typedef struct {
 	RSPACKET rspacket;
 	
 }RECEIVED_PACKET;
+
 
 
 //Connection states for inbound/outbound stream connections
@@ -41,10 +43,6 @@ typedef struct {
 	uchar* buffer;				//Where are the stream payloads stored at?
 	
 } CONNECTION;
-
-
-
-
 
 
 

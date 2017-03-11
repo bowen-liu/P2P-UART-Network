@@ -1,7 +1,8 @@
 #ifndef _UARTNET_SWITCHH_
 #define _UARTNET_SWITCHH_
 
-#include "packets.h"
+#include "frame.h"
+
 #include "link.h"
 
 #define TOTAL_LINKS         1

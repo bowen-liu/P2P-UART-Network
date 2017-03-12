@@ -1,11 +1,16 @@
 /*This file must be declared as a .cpp file since it uses the HardwareSerial Object from Arduino's library*/
 #include "link.h"
 
+static uint8_t links_registered = 0;
+static uint8_t neighbors[MAX_LINKS][MAX_NEIGHBORS];
+
 LINK link_init(HardwareSerial *port)
 {
   LINK link;
 
   link.port = port;
+  link.id = links_registered++;
+  
   link.rbuf_writeidx = 0;
   link.rbuf_valid = 0;
   link.rbuf_expectedsize = 0;
@@ -14,9 +19,18 @@ LINK link_init(HardwareSerial *port)
 
   memset(link.recvbuf, 0, RECV_BUFFER_SIZE);
   memset(link.send_queue, 0, SEND_QUEUE_SIZE * sizeof(RAW_FRAME));
+  memset(&neighbors[link.id][0], 0, MAX_NEIGHBORS);
 
   return link;
 }
+
+
+
+/***************************
+RECEIVING FRAMES
+***************************/
+
+
 
 void proc_buf(uchar *rawbuf, size_t chunk_size, LINK *link)
 {
@@ -68,7 +82,6 @@ int check_complete_frame(LINK *link)
   if (preamble != FRAME_PREAMBLE)
     return 0;
 
-
   //Set the expected payload size if full header has received
   if (link->rbuf_writeidx >= FRAME_HEADER_SIZE)
     link->rbuf_expectedsize = FRAME_HEADER_SIZE + *((uint8_t*)&link->recvbuf[3]) + 2;  //add 2 bytes for "STX" and "ETX" for payload
@@ -80,10 +93,6 @@ int check_complete_frame(LINK *link)
     return 0;
 
 }
-
-
-
-
 
 
 /*
@@ -141,8 +150,8 @@ int check_link_rw(LINK *link)
     return 0;
 
   bytes = link->port->readBytes(tempbuf, bytes);
+  
   //Make sure we're not overflowing the buffer
-
   if (link->rbuf_writeidx + bytes < RECV_BUFFER_SIZE)
   {
     proc_buf(tempbuf, bytes, link);
@@ -168,7 +177,6 @@ RAW_FRAME extract_frame_from_rbuf(LINK *link)
     return raw_frame;
 
   printf("Complete packet received! %u bytes!\n", raw_frame.size);
-  //parse_recvd_packet(&link->recvbuf[0], bytes);
   print_bytes(&link->recvbuf[0], raw_frame.size);
 
   //Allocate a new buffer for the raw packet for returning
@@ -186,10 +194,52 @@ RAW_FRAME extract_frame_from_rbuf(LINK *link)
 }
 
 
+//Turn a raw frame buffer into a FRAME struct. If intended for link layer, handle it immediately
+FRAME parse_raw_frame(RAW_FRAME raw)
+{
+  FRAME frame;  
+  uint16_t preamble = *((uint16_t*)&raw.buf[0]);
+  int i;
+  
+  //print_bytes(buf, bytes);
+
+  //Parse the header
+  frame = buf_to_frame(raw.buf);
+
+  //Check if payload is complete
+  if (raw.buf[FRAME_HEADER_SIZE] != STX)
+    printf("STX not found, packet header may be corrupt!\n");
+  if (raw.buf[FRAME_HEADER_SIZE + frame.size + 1] != ETX)
+    printf("ETX not found, packet may be corrupt or payload was truncated!\n");
+
+  //create a new buffer for the payload
+  if(frame.size > 0)
+  {
+	frame.payload = malloc(frame.size);
+	memcpy(frame.payload, &raw.buf[FRAME_HEADER_SIZE + 1], frame.size);
+  }
+
+  printf("\n****************************\n");
+  print_frame(frame);
+  printf("payload: ");
+  print_bytes(frame.payload, frame.size);
+  printf("\n****************************\n");
+
+  //Remember to free its payload when done!
+
+  return frame;
+}
+
+
+
+
+/***************************
+SENDING FRAMES
+***************************/
 
 int add_to_send_queue(RAW_FRAME raw, LINK *link)
 {
-  int i;
+  int i, j;
 
   if (link->squeue_pending == SEND_QUEUE_SIZE )
   {
@@ -198,11 +248,14 @@ int add_to_send_queue(RAW_FRAME raw, LINK *link)
     return -1;
   }
 
-  //Find a free slot in the sending queue
-  for (i = 0; i < SEND_QUEUE_SIZE; i++)
+  //Find a free slot in the sending queue, starting from the last sending index
+  for (i = link->squeue_lastsent + 1, j = 0; j < SEND_QUEUE_SIZE; j++)
   {
-    if (link->send_queue[i].size == 0)
-      break;
+    //Wrap index i around to the beginning if needed
+    if (i >= SEND_QUEUE_SIZE - 1) i = 0;
+    else if (i < SEND_QUEUE_SIZE - 1) i++;
+
+    if (link->send_queue[i].size == 0) break;
   }
 
   link->send_queue[i] = raw;
@@ -210,8 +263,6 @@ int add_to_send_queue(RAW_FRAME raw, LINK *link)
 
   return i;
 }
-
-
 
 
 int transmit_next(LINK *link)
@@ -232,10 +283,13 @@ int transmit_next(LINK *link)
     if (link->send_queue[i].size > 0) break;
   }
 
-  //TODO:Transmit the packet
-  printf("PRETENDING to transmit: %d ", i);
-  print_bytes(link->send_queue[i].buf, link->send_queue[i].size);
+  //printf("PRETENDING to transmit: %d ", i);
+  //print_bytes(link->send_queue[i].buf, link->send_queue[i].size);
+  
+  //Transmit the packet out onto the link
+  link->port->write(link->send_queue[i].buf, link->send_queue[i].size);
 
+  
   //cleanup & mark this slot as free
   link->squeue_lastsent = i;
   link->squeue_pending--;
@@ -244,6 +298,28 @@ int transmit_next(LINK *link)
 
   return i;
 }
+
+
+int create_send_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload, LINK *link)
+{
+	return add_to_send_queue(frame_to_buf(create_frame(src, dst, size, payload)), link);
+}
+
+
+
+
+//Handles frames with dst = 00
+void handle_link_msg(RAW_FRAME raw_frame)
+{
+  FRAME frame = buf_to_frame(raw_frame.buf);
+
+  /*if(strncmp(frame.buf, "PROBE_MSG_PREAMBLE", LINK_MSG_SIZE) == 0)
+  {
+    
+  }*/
+}
+
+
 
 
 

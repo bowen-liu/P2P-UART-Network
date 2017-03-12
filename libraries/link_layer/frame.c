@@ -44,8 +44,31 @@ FRAME buf_to_frame(uchar* buf)
 	frame.dst 		= ((*((uint8_t*) &buf[2])) >> 4);
 	frame.src 		= (*((uint8_t*) &buf[2])) & 0x0F;
 	frame.size 		= *((uint8_t*)&buf[3]);
+ 
+  frame.payload = &buf[FRAME_HEADER_SIZE + 1];
 
 	return frame;
+}
+
+
+
+RAW_FRAME frame_to_buf (FRAME frame)
+{
+  RAW_FRAME raw_frame;
+
+  //Marshal the headers first 
+  raw_frame.size = FRAME_HEADER_SIZE + frame.size + 2;  //header size + payload size + "STX" + "ETX"
+  raw_frame.buf = frame_header_tobuf(&frame);
+
+  //resize the buffer to fit the payload as well. 
+  realloc(raw_frame.buf, raw_frame.size);
+  
+  //Move the payload into the buffer, along with "STX" and "ETX"
+  raw_frame.buf[FRAME_HEADER_SIZE] = STX;
+  memcpy(&raw_frame.buf[FRAME_HEADER_SIZE + 1], frame.payload, frame.size);
+  raw_frame.buf[FRAME_HEADER_SIZE + 1 + frame.size] = ETX;
+
+  return raw_frame;
 }
 
 

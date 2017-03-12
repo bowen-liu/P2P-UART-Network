@@ -1,9 +1,10 @@
 #ifndef _UARTNET_SWITCHH_
 #define _UARTNET_SWITCHH_
 
-#include "frame.h"
+//#include "link_layer/link.h"
+#include <frame.h>
+#include <link.h>
 
-#include "link.h"
 
 #define TOTAL_LINKS         1
 #define RECV_BUFFER_SIZE    2*(MAX_PAYLOAD_SIZE + 16)     //add extra bytes for headers and other
@@ -11,8 +12,6 @@
 
 
 
-//probing messages
-#define PROBE_MSG					((const char*) "WHATAREYOU?")
 
 
 #ifdef __cplusplus

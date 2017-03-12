@@ -45,6 +45,15 @@ typedef struct {
 } __attribute__((packed)) FRAME;
 
 
+//buffer for a raw unprocessed frame
+typedef struct{
+
+  size_t size;
+  uchar *buf;
+
+}RAW_FRAME;
+
+
 //Functions
 
 //Must add this for Arduino IDE to link functions in c headers
@@ -55,10 +64,13 @@ extern "C" {
 //functions
 void print_bytes(uchar *buf, size_t bytes);
 
-uchar* frame_header_tobuf (FRAME *packet);
-FRAME buf_to_frame(uchar* buf);
-void print_frame(FRAME packet);
 FRAME create_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload);
+FRAME buf_to_frame(uchar* buf);
+uchar* frame_header_tobuf (FRAME *packet);
+RAW_FRAME frame_to_buf (FRAME frame);
+void print_frame(FRAME packet);
+
+
 
 
 #ifdef __cplusplus

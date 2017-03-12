@@ -2,6 +2,7 @@
 #define _UARTNET_TRANSPORTH_
 
 #include "packets.h"
+#include "crc8.h"
 
 //Max concurrent connections
 #define MAX_INBOUND_STREAMS			MAX_ADDRESS + 1

@@ -1,5 +1,4 @@
 #include "switch.h"
-#include "transport.h"
 
 LINK links[TOTAL_LINKS];
 
@@ -47,7 +46,7 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
   int i;
 
   //Is this packet intended for the switch itself?
-  if(preamble == FRAME_PREAMBLE && dest == 0)
+  if(dest == 0)
   {
     printf("Link Packet!\n");
     
@@ -67,6 +66,8 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
     free(raw.buf);
     return;
   }
+
+  parse_raw_frame(raw);
 
   //Forward this singular packet otherwise
   //TODO: ARP table

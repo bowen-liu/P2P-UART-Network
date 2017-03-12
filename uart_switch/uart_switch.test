@@ -1,0 +1,53 @@
+#include "switch.h"
+#include "transport.h"
+
+LINK links[TOTAL_LINKS];
+
+/******************************/
+//Arduino Setup
+/******************************/
+
+FILE serial_stdout;
+
+int serial_putchar(char c, FILE* f) {
+   if (c == '\n') serial_putchar('\r', f);
+   return Serial.write(c) == 1? 0 : 1;
+}
+
+void setup()
+{
+   //Setting up serial1 and stdout redirection
+   Serial.begin(115200);
+   fdev_setup_stream(&serial_stdout, serial_putchar, NULL, _FDEV_SETUP_WRITE);
+   stdout = &serial_stdout;
+
+   printf("Serial Buffer: %d\n", SERIAL_RX_BUFFER_SIZE );
+
+  //Initializing link layer data for serial1
+   Serial1.begin(115200);
+}
+
+
+/******************************/
+//Switch
+/******************************/
+
+void loop() 
+{
+
+  uchar payload_test[20] = "ABCDEFGHIJKLMNOPQRS";
+  FRAME testPacket1 = create_frame(0xc, 0x6, 0x13, payload_test);
+
+  print_frame(testPacket1);
+  print_bytes(testPacket1.payload, testPacket1.size);
+ 
+  RAW_FRAME testraw = frame_to_buf(testPacket1);
+  print_bytes(testraw.buf, testraw.size);
+
+  while(1);
+
+}
+
+
+
+

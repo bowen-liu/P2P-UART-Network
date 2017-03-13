@@ -105,6 +105,7 @@ USPACKET create_uspacket(uint8_t src, uint8_t dst, uint16_t id, uint8_t total_si
 RSPACKET create_rspacket(uint16_t preamble, uint8_t src, uint8_t dst, uint16_t id, uint32_t size, uchar *payload);
 
 
+//FRAME uspacket_to_frame(USPACKET packet);
 USPACKET frame_to_uspacket(FRAME frame);
 void print_uspacket(USPACKET packet);
 

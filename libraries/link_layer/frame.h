@@ -66,7 +66,6 @@ void print_bytes(uchar *buf, size_t bytes);
 
 FRAME create_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload);
 FRAME buf_to_frame(uchar* buf);
-uchar* frame_header_tobuf (FRAME *packet);
 RAW_FRAME frame_to_buf (FRAME frame);
 void print_frame(FRAME packet);
 

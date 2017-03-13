@@ -1,3 +1,5 @@
+#include <MemoryFree.h>
+
 #include "node.h"
 
 LINK link;
@@ -22,6 +24,7 @@ void setup()
   stdout = &serial_stdout;
 
   printf("Serial Buffer: %d\n", SERIAL_RX_BUFFER_SIZE );
+  printf("Send queue size: %d\n", SEND_QUEUE_SIZE);
 
   //Initializing link layer data for serial1
   Serial1.begin(115200);
@@ -37,7 +40,6 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
 {
   uint16_t preamble = *((uint16_t*)&raw.buf[0]);
   uint8_t dest = ((*((uint8_t*) &raw.buf[2])) >> 4);
-  int i;
 
   //Is this packet intended for the switch itself?
   if(dest == 0)
@@ -79,28 +81,37 @@ void net_task()
   
   printf("Switch is starting...\n");
 
-/*
-  //Packet 1
-  FRAME f1 = create_frame(0xc, 0x6, 0x13, "ABCDEFGHIJKLMNOPQRS");
-  RAW_FRAME rf1 = frame_to_buf(f1);
-
-  //packet 2
-  FRAME f2 = create_frame(0xE, 0xD, 0x3c, "ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE");
-  RAW_FRAME rf2 = frame_to_buf(f2);
-
-  //packet 3
-  FRAME f3 = create_frame(0xA, 0xC, 0x26, "xyxyxyxyxyxyxyxyxyxxyxyxyxyxyxyxyxyxyx");
-  RAW_FRAME rf3 = frame_to_buf(f3);
-
-  //Add to send queues
-  add_to_send_queue(rf1, &link);
-  add_to_send_queue(rf2, &link);
-  add_to_send_queue(rf3, &link);
-*/
-
+  /*
   create_send_frame(0xc, 0x6, 0x13, "ABCDEFGHIJKLMNOPQRS", &link);
   create_send_frame(0xE, 0xD, 0x3c, "ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE", &link);
   create_send_frame(0xA, 0xC, 0x26, "xyxyxyxyxyxyxyxyxyxxyxyxyxyxyxyxyxyxyx", &link);
+  */
+  
+  
+
+//Testing uspacket
+
+
+  USPACKET us1 = create_uspacket(0xC, 0x6, 0xEAEA, 0x13, 0, 0x13, "ABCDEFGHIJKLMNOPQRS");
+
+  USPACKET us2 = create_uspacket(0xE, 0xD, 0x1E9A, 0x3c, 0, 0x3c, "ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE");
+
+  USPACKET us3 = create_uspacket(0xa, 0xc, 0x69AF, 0x26, 0, 0x26, "xyxyxyxyxyxyxyxyxyxxyxyxyxyxyxyxyxyxyx");
+
+  printf("\n**************\n");
+  print_uspacket(us1);
+  print_uspacket(us2);
+  print_uspacket(us3);
+  printf("\n**************\n");
+  
+  send_uspacket(us1, &link);
+  send_uspacket(us2, &link);
+  send_uspacket(us3, &link);
+
+
+
+  printf("All sent! \n");
+
   
   while (1)
   {

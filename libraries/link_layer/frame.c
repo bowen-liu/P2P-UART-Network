@@ -12,7 +12,7 @@ void print_bytes(uchar *buf, size_t bytes)
 	printf("\n");
 }
 
-
+//We always assume the payloads for frames are not dynamically allocated
 FRAME create_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload)
 {
 	FRAME frame;
@@ -23,47 +23,44 @@ FRAME create_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload)
 	frame.size = size;
  
 	frame.payload = payload;
+	//frame.payload = malloc(frame.size);
+	//memcpy(frame.payload, payload, frame.size);
 	
 	return frame;
-}
-
-
-uchar* frame_header_tobuf (FRAME *frame)
-{
-	uchar* header_str = malloc(FRAME_HEADER_SIZE + 1);
-	memcpy(header_str, (uchar*) frame, FRAME_HEADER_SIZE);
-  
-	return header_str;
 }
 
 FRAME buf_to_frame(uchar* buf)
 {
 	FRAME frame;
 	
+	//Extract the frame headers
 	frame.preamble 	= *((uint16_t*)&buf[0]);
 	frame.dst 		= ((*((uint8_t*) &buf[2])) >> 4);
 	frame.src 		= (*((uint8_t*) &buf[2])) & 0x0F;
 	frame.size 		= *((uint8_t*)&buf[3]);
  
-  frame.payload = &buf[FRAME_HEADER_SIZE + 1];
+ 
+	//create a new buffer for the payload
+	if(frame.size > 0)
+	{
+		frame.payload = malloc(frame.size);
+		memcpy(frame.payload, &buf[FRAME_HEADER_SIZE + 1], frame.size);
+	}
 
 	return frame;
 }
 
 
-
 RAW_FRAME frame_to_buf (FRAME frame)
 {
   RAW_FRAME raw_frame;
-
-  //Marshal the headers first 
   raw_frame.size = FRAME_HEADER_SIZE + frame.size + 2;  //header size + payload size + "STX" + "ETX"
-  raw_frame.buf = frame_header_tobuf(&frame);
-
-  //resize the buffer to fit the payload as well. 
-  realloc(raw_frame.buf, raw_frame.size);
+  raw_frame.buf = malloc(raw_frame.size);
   
-  //Move the payload into the buffer, along with "STX" and "ETX"
+  //Marshal the headers first 
+  memcpy(raw_frame.buf, (uchar*)&frame, FRAME_HEADER_SIZE);
+  
+  //Append the payload into the buffer, along with "STX" and "ETX" added around the payload
   raw_frame.buf[FRAME_HEADER_SIZE] = STX;
   memcpy(&raw_frame.buf[FRAME_HEADER_SIZE + 1], frame.payload, frame.size);
   raw_frame.buf[FRAME_HEADER_SIZE + 1 + frame.size] = ETX;

@@ -4,13 +4,18 @@
 #include <HardwareSerial.h>
 #include "frame.h"
 
+//Default configuration values if not provided by the user
+#ifndef SEND_QUEUE_SIZE
 #define SEND_QUEUE_SIZE   5
-#define RECV_BUFFER_SIZE  2*(MAX_PAYLOAD_SIZE + 16)     //add extra bytes for headers and other
-#define FLUSH_THRESHOLD   RECV_BUFFER_SIZE * 0.5
+#endif
 
-//Maybe make these dynamic later on?
-#define MAX_LINKS         4   
-#define MAX_NEIGHBORS     8   
+#ifndef RECV_BUFFER_SIZE
+#define RECV_BUFFER_SIZE  2*(MAX_PAYLOAD_SIZE + 16)     //add extra bytes for headers and other
+#endif
+
+#ifndef FLUSH_THRESHOLD
+#define FLUSH_THRESHOLD   RECV_BUFFER_SIZE * 0.5
+#endif
 
 
 //Link Layer messages
@@ -18,13 +23,11 @@
 #define PROBE_MSG_PREAMBLE          ((const char*) "!HELLO")
 
 
-//Link Type
-
 //Link descriptor for a UART port
 typedef struct{
 
   uint8_t id;
-  enum PORT_TYPE {GATEWAY, NODE} port_type;
+  //enum PORT_TYPE {GATEWAY, NODE} port_type;
   HardwareSerial *port;
   
 
@@ -49,14 +52,15 @@ typedef struct{
 LINK link_init(HardwareSerial *port);
 
 void proc_buf(uchar *rawbuf, size_t chunk_size, LINK *link);
-int check_link_rw(LINK *link);
+size_t check_link_rw(LINK *link);
 RAW_FRAME extract_frame_from_rbuf(LINK *link);
 FRAME parse_raw_frame(RAW_FRAME raw);
 
 
-int add_to_send_queue(RAW_FRAME raw, LINK *link);
-int transmit_next(LINK *link);
-int create_send_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload, LINK *link);
+uint8_t add_to_send_queue(RAW_FRAME raw, LINK *link);
+uint8_t transmit_next(LINK *link);
+uint8_t send_frame(FRAME frame, LINK *link);
+uint8_t create_send_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload, LINK *link);
 
 
 #endif

@@ -4,6 +4,9 @@
 #include "packets.h"
 #include "crc8.h"
 
+//#include "../link_layer/link.h"
+#include <link.h>
+
 //Max concurrent connections
 #define MAX_INBOUND_STREAMS			MAX_ADDRESS + 1
 #define MAX_OUTBOUND_STREAMS		MAX_ADDRESS + 1
@@ -55,9 +58,10 @@ void transport_initialize();
 
 int parse_recvd_packet(uchar *buf, size_t bytes);
 
-int send_umessage(uint8_t src, uint8_t dst, uint8_t size, uchar *data);
-int send_ustream(uint8_t src, uint8_t dst, uint8_t size, uchar *data);
-int send_rstream(uint8_t src, uint8_t dst, uint8_t size, uchar *data);
+
+int send_umpacket(UMPACKET packet, LINK *link);
+int send_uspacket(USPACKET packet, LINK *link);
+
 
 
 #ifdef __cplusplus

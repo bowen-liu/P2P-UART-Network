@@ -213,8 +213,6 @@ FRAME parse_raw_frame(RAW_FRAME raw)
 
   printf("\n****************************\n");
   print_frame(frame);
-  printf("payload: ");
-  print_bytes(frame.payload, frame.size);
   printf("\n****************************\n");
 
   //Remember to free its payload when done!

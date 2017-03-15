@@ -89,7 +89,7 @@ void net_task()
 
 //Testing uspacket
 
-
+/*
   USPACKET us1 = create_uspacket(0xC, 0x6, 0xEAEA, 0x13, 0, 0x13, "ABCDEFGHIJKLMNOPQRS");
 
   USPACKET us2 = create_uspacket(0xE, 0xD, 0x1E9A, 0x3c, 0, 0x3c, "ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE");
@@ -105,6 +105,19 @@ void net_task()
   send_uspacket(us1, &link);
   send_uspacket(us2, &link);
   send_uspacket(us3, &link);
+
+*/
+
+//Testing RSPackets
+
+RSPACKET syn1 = create_rspacket_syn(0xE, 0xD, 0x3c);
+send_rspacket(syn1, &link);
+RSPACKET ack1 = create_rspacket_ack(0xE, 0xD, 0x3c, 0x1E9A, 0);
+send_rspacket(ack1, &link);
+RSPACKET dat1 = create_rspacket_data(0xE, 0xD, 0x3c, 0x1E9A, 0, "ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE");
+send_rspacket(dat1, &link);
+
+
 
 
 

@@ -9,7 +9,6 @@ void print_bytes(uchar *buf, size_t bytes)
 		//if(i%2 == 0)printf(" ");
 		printf("%02X", buf[i]);
 	}
-	printf("\n");
 }
 
 //We always assume the payloads for frames are not dynamically allocated
@@ -75,5 +74,9 @@ void print_frame(FRAME frame)
 	printf("src: %X\n", frame.src);
 	printf("dst: %X\n", frame.dst);
 	printf("size: %X\n", frame.size);
+	
+	printf("payload: ");
+	print_bytes(frame.payload, frame.size);
+	printf("\n");
 }
 

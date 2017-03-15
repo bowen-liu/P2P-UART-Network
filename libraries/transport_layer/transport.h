@@ -21,12 +21,15 @@ enum PACKET_TYPE {INVALID = 0, UMPACKET_TYPE, USPACKET_TYPE, RSPACKET_TYPE};
 typedef struct {
   
   enum PACKET_TYPE type;
-	
+  
+  union PACKETS 
+  {  
 	UMPACKET umpacket;
 	USPACKET uspacket;
 	RSPACKET rspacket;
+  } packet;
 	
-}RECEIVED_PACKET;
+}RECVD_PACKET;
 
 
 
@@ -56,11 +59,12 @@ extern "C" {
 
 void transport_initialize();
 
-int parse_recvd_packet(uchar *buf, size_t bytes);
+RECVD_PACKET parse_recvd_frame(FRAME frame, size_t bytes);
 
 
 int send_umpacket(UMPACKET packet, LINK *link);
 int send_uspacket(USPACKET packet, LINK *link);
+int send_rspacket(RSPACKET packet, LINK *link);
 
 
 

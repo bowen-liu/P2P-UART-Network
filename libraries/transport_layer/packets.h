@@ -77,13 +77,16 @@ Reliable Message Packets
 
 typedef struct {
 
-	unsigned int src		: ADDRESS_WIDTH;
-	unsigned int dst		: ADDRESS_WIDTH;
+	//Primary Header Fields
+	unsigned int src			: ADDRESS_WIDTH;
+	unsigned int dst			: ADDRESS_WIDTH;
+	unsigned int payload_size   : PAYLOAD_SIZE_WIDTH;
 
-	unsigned int type    	: PREAMBLE_WIDTH;
-	unsigned int id			: ID_WIDTH;
-	uint32_t size    		: RSTREAM_SIZE_WIDTH;
-	unsigned int checksum	: CHECKSUM_WIDTH;
+	//Secondary Header Fields
+	unsigned int type    		: PREAMBLE_WIDTH;
+	unsigned int id				: ID_WIDTH;
+	uint32_t payload_offset    	: RSTREAM_SIZE_WIDTH;
+	unsigned int checksum		: CHECKSUM_WIDTH;
 	
 	unsigned char *payload;
 	
@@ -102,12 +105,18 @@ extern "C" {
 
 UMPACKET create_umpacket(uint8_t src, uint8_t dst, uint8_t size, uchar *payload);
 USPACKET create_uspacket(uint8_t src, uint8_t dst, uint16_t id, uint8_t total_size, uint16_t payload_offset, uint8_t payload_size, uchar *payload);
-RSPACKET create_rspacket(uint16_t preamble, uint8_t src, uint8_t dst, uint16_t id, uint32_t size, uchar *payload);
+RSPACKET create_rspacket_syn(uint8_t src, uint8_t dst, uint32_t stream_size);
+RSPACKET create_rspacket_ack(uint8_t src, uint8_t dst, uint8_t payload_size, uint16_t id, uint32_t payload_offset);
+RSPACKET create_rspacket_data(uint8_t src, uint8_t dst, uint8_t payload_size, uint16_t id, uint32_t payload_offset, uchar *payload);
 
 
 //FRAME uspacket_to_frame(USPACKET packet);
 USPACKET frame_to_uspacket(FRAME frame);
 void print_uspacket(USPACKET packet);
+
+//FRAME rspacket_to_frame(RSPACKET packet);
+RSPACKET frame_to_rspacket(FRAME frame);
+void print_rspacket(RSPACKET packet);
 
 
 #ifdef __cplusplus

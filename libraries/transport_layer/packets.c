@@ -119,24 +119,21 @@ void print_uspacket(USPACKET packet)
 
 
 
-
-
-
-
 /***************************
 Reliable Message Packets
 ***************************/
 
-RSPACKET create_rspacket(uint16_t preamble, uint8_t src, uint8_t dst, uint16_t id, uint32_t size, uchar *payload)
+RSPACKET create_rspacket(uint16_t preamble, uint8_t src, uint8_t dst, uint8_t payload_size, uint16_t id, uint32_t payload_offset, uchar *payload)
 {
 	RSPACKET packet;
 
 	packet.src = src;
 	packet.dst = dst;
+	packet.payload_size = payload_size;
 	
 	packet.type = preamble;
 	packet.id = id;
-	packet.size = size;
+	packet.payload_offset = payload_offset;
 	packet.payload = payload;
 	
 
@@ -148,8 +145,124 @@ RSPACKET create_rspacket(uint16_t preamble, uint8_t src, uint8_t dst, uint16_t i
 	if(packet.payload != NULL)
 		packet.checksum = crc8_block(packet.checksum, (uchar*) packet.payload, packet.size);
 	*/
+	packet.checksum = 0xFF;
 	
 	return packet;
+}
+
+RSPACKET create_rspacket_syn(uint8_t src, uint8_t dst, uint32_t stream_size)
+{	
+	srand((unsigned) time(NULL));
+	return create_rspacket(RSPACKET_SYN_PREAMBLE, src, dst, stream_size, (uint16_t)rand(), 0, NULL);
+}
+
+
+RSPACKET create_rspacket_ack(uint8_t src, uint8_t dst, uint8_t payload_size, uint16_t id, uint32_t payload_offset)
+{	
+	return create_rspacket(RSPACKET_ACK_PREAMBLE, src, dst, payload_size, id, payload_offset, NULL);
+}
+
+
+RSPACKET create_rspacket_data(uint8_t src, uint8_t dst, uint8_t payload_size, uint16_t id, uint32_t payload_offset, uchar *payload)
+{	
+	return create_rspacket(RSPACKET_DATA_PREAMBLE, src, dst, payload_size, id, payload_offset, payload);
+}
+
+
+RSPACKET frame_to_rspacket(FRAME frame)
+{
+	RSPACKET packet;
+	
+	//Extract the primary headers
+	packet.src = frame.src;
+	packet.dst = frame.dst;
+	packet.payload_size = frame.size - RSPACKET_HEADER_EXTRA;
+	
+	//Extract the secondary headers
+	packet.type = *((uint16_t*)&frame.payload[0]);
+	packet.id = *((uint16_t*)&frame.payload[2]);
+	packet.payload_offset = *((uint16_t*)&frame.payload[4]);
+	packet.checksum = *((uint16_t*)&frame.payload[8]);
+	
+	//Copy the payload without the secondary headers
+	packet.payload = &frame.payload[RSPACKET_HEADER_EXTRA]; //good idea? maybe use memmov to remove the uneeded bytes?
+	
+	return packet;
+	
+}
+
+/*
+FRAME rspacket_to_frame(RSPACKET packet)
+{
+	FRAME frame;
+	int retval;
+	size_t actual_pl_size;
+	
+
+	//Determine the actual payload size for the FRAME. SYN/ACK packets only have the secondary headers in the frame payload.
+	if(packet.type == RSPACKET_DATA_PREAMBLE) 
+		actual_pl_size = packet.payload_size + RSPACKET_HEADER_EXTRA;
+	else 
+		actual_pl_size = RSPACKET_HEADER_EXTRA;
+	
+	//Create a new frame to encapsulate the RSPACKET
+	frame = create_frame(packet.src, packet.dst, actual_pl_size, NULL);
+	
+	//Allocate memory for the frame's payload
+	frame.payload = (uchar*)malloc(frame.size);
+	
+	//Copy the secondary header fields into the beginning of the payload. Skip src, dst, payload_size
+	memcpy(frame.payload, &(((uchar*)&packet)[2]), RSPACKET_HEADER_EXTRA);
+	
+	//Append the remaining payload if it's a DATA packet
+	if(packet.type == RSPACKET_DATA_PREAMBLE)
+		memcpy(&frame.payload[RSPACKET_HEADER_EXTRA], packet.payload, packet.payload_size);
+	
+	//WARNING: frame.payload is dynamically allocated! You must free this manually!
+	
+	return frame;
+}
+*/
+
+void print_rspacket(RSPACKET packet)
+{
+	printf("src: %X\n", packet.src);
+	printf("dst: %X\n", packet.dst);
+	
+	printf("type: %X ", packet.type);
+	switch(packet.type)
+	{
+		case RSPACKET_SYN_PREAMBLE:
+			printf("(SYN)\n");
+			printf("Total Stream Size: %X\n", packet.payload_size);
+			break;
+		
+		case RSPACKET_ACK_PREAMBLE:
+			printf("(ACK)\n");
+			printf("Acked byte: %X\n", packet.payload_size);
+			break;
+		
+		case RSPACKET_DATA_PREAMBLE:
+			printf("(DATA)\n");
+			printf("payload_size: %X\n", packet.payload_size);
+			break;
+		
+		default:
+			printf("(UNKNOWN)\n");
+			return;
+	}
+
+	printf("id: %X\n", packet.id);
+	printf("payload_offset: %X\n", packet.payload_offset);
+	printf("checksum: %X\n", packet.checksum);
+	
+	if(packet.type == RSPACKET_DATA_PREAMBLE)
+	{
+		printf("payload: ");
+		print_bytes(packet.payload, packet.payload_size);
+		printf("\n\n");
+	}
+
 }
 
 

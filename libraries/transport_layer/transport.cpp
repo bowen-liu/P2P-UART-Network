@@ -1,40 +1,53 @@
 #include "transport.h"
 
-//Streams that are still in-flight
-//static CONNECTION *in_streams;
-//static CONNECTION *out_streams;
-
-//Buffer for newly received packets pending to be processed by the application
-//static RECEIVED_PACKET *recvd_packets;
-//static int recvd_packets_count;
 
 
 /***************************
   Front-end Functions
 ***************************/
 
-void network_task()
+TRANSPORT transport_initialize()
 {
-  static uint8_t last_sent = 0;
-
-  while (1)
-  {
-
-  }
-
-}
-
-void transport_initialize()
-{
-  //recvd_packets_count = 0;
+  TRANSPORT tr;
+  
+  tr.links_total = 0;
+  tr.recvd_count = 0;
+  
+  memset(tr.recvd_queue, 0, MAX_RECEIVED_BUF*sizeof(RECVD_DATA));
 
   //in_streams = calloc(MAX_INBOUND_STREAMS, sizeof(CONNECTION));
  // out_streams = calloc(MAX_OUTBOUND_STREAMS, sizeof(CONNECTION));
-  //recvd_packets = calloc(MAX_RECEIVED_BUF, sizeof(RECEIVED_PACKET));
-
+ 
+	return tr;
 }
 
+
+void transport_register_link(TRANSPORT *tr, HardwareSerial *port)
+{
+	//Call the link layer function link_init to initialize the port
+	tr->links[tr->links_total] = link_init(port);
+	tr->links_total++;
+}
+
+
+
+void transport_check_recv(TRANSPORT *tr)
+{
+	int i;
+	
+	//Check the receive buffers of each registered link for new frames
+	for(i=0; i< tr->links_total; i++)
+	{
+		
+	}
+}
+
+/***************************
+  Receiving from Link Layer
+***************************/
+
 //assumes frame.payload was malloc'd
+/*
 RECVD_PACKET parse_recvd_frame(FRAME frame, size_t bytes)
 {
 	RECVD_PACKET recvd;
@@ -64,6 +77,7 @@ RECVD_PACKET parse_recvd_frame(FRAME frame, size_t bytes)
 
   return recvd;
 }
+*/
 
 
 

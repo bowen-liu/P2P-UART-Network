@@ -67,7 +67,12 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
     return;
   }
 
-  parse_raw_frame(raw);
+
+  printf("\n****************************\n");
+  FRAME frame = raw_to_frame(raw);
+  print_frame(frame);
+  free(frame.payload);
+  printf("\n****************************\n");
 
   //Forward this singular packet otherwise
   //TODO: ARP table
@@ -95,7 +100,7 @@ void switch_task()
      for(i=0; i<TOTAL_LINKS; i++)
      {
        //See if any new bytes are available for reading
-       bytes = check_link_rw(&links[i]);
+       bytes = check_new_bytes(&links[i]);
        
        //Check if buffer contains one or more complete packets
        if(bytes > 0 || links[i].rbuf_valid)

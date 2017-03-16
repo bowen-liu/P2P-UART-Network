@@ -10,26 +10,39 @@
 //Max concurrent connections
 #define MAX_INBOUND_STREAMS			MAX_ADDRESS + 1
 #define MAX_OUTBOUND_STREAMS		MAX_ADDRESS + 1
-#define MAX_RECEIVED_BUF        8
+#define MAX_RECEIVED_BUF        	8
 
 
 //Generic Packet datatype used to return a newly received packet
-
-
-enum PACKET_TYPE {INVALID = 0, UMPACKET_TYPE, USPACKET_TYPE, RSPACKET_TYPE};
+enum RECVD_TYPE {INVALID = 0, DATA, TRANSFER_REQ};
 
 typedef struct {
   
-  enum PACKET_TYPE type;
-  
-  union PACKETS 
-  {  
-	UMPACKET umpacket;
-	USPACKET uspacket;
-	RSPACKET rspacket;
-  } packet;
+  enum RECVD_TYPE type;
+  char *data;
+  RSPACKET transfer_req;
+
+}RECVD_DATA;
+
+
+//transport layer stuff
+typedef struct {
 	
-}RECVD_PACKET;
+	LINK *links;
+	uint8_t links_total;
+	
+	//Streams that are still in-flight
+	//static CONNECTION *in_streams;
+	//static CONNECTION *out_streams;
+	
+	//Buffer for received messages or completed streams waiting to be read by the user
+	RECVD_DATA recvd_queue[MAX_RECEIVED_BUF];
+	int recvd_count;
+	
+
+}TRANSPORT;
+
+
 
 
 
@@ -57,10 +70,11 @@ typedef struct {
 extern "C" {
 #endif
 
-void transport_initialize();
+TRANSPORT transport_initialize();
+void transport_register_link(TRANSPORT *transport, HardwareSerial *port);
 
-RECVD_PACKET parse_recvd_frame(FRAME frame, size_t bytes);
-
+void transport_check_recv(TRANSPORT *tr);
+//ECVD_PACKET parse_recvd_frame(FRAME frame, size_t bytes);
 
 int send_umpacket(UMPACKET packet, LINK *link);
 int send_uspacket(USPACKET packet, LINK *link);

@@ -63,11 +63,14 @@ extern "C" {
 
 //functions
 void print_bytes(uchar *buf, size_t bytes);
+void print_frame(FRAME frame);
 
 FRAME create_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload);
 FRAME buf_to_frame(uchar* buf);
-RAW_FRAME frame_to_buf (FRAME frame);
-void print_frame(FRAME frame);
+RAW_FRAME frame_to_raw (FRAME frame);
+FRAME raw_to_frame(RAW_FRAME raw);
+
+
 
 
 

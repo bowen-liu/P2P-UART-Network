@@ -1,22 +1,26 @@
 /*This file must be declared as a .cpp file since it uses the HardwareSerial Object from Arduino's library*/
 #include "link.h"
 
-static uint8_t links_registered = 0;
+//static uint8_t links_registered = 0;
 
 LINK link_init(HardwareSerial *port)
 {
   LINK link;
 
   link.port = port;
-  link.id = links_registered++;
+  //link.id = links_registered++;
   
   link.rbuf_writeidx = 0;
   link.rbuf_valid = 0;
   link.rbuf_expectedsize = 0;
+  link.rqueue_pending = 0;
+  link.rqueue_head = 0;
   link.squeue_pending = 0;
   link.squeue_lastsent = 0;
 
+
   memset(link.recvbuf, 0, RECV_BUFFER_SIZE);
+  memset(link.recv_queue, 0, RECV_QUEUE_SIZE * sizeof(FRAME));
   memset(link.send_queue, 0, SEND_QUEUE_SIZE * sizeof(RAW_FRAME));
 
   return link;
@@ -25,9 +29,8 @@ LINK link_init(HardwareSerial *port)
 
 
 /***************************
-RECEIVING FRAMES
+RECEIVING BYTES
 ***************************/
-
 
 
 void proc_buf(uchar *rawbuf, size_t chunk_size, LINK *link)
@@ -93,51 +96,8 @@ size_t check_complete_frame(LINK *link)
 }
 
 
-/*
-  size_t check_link_rw(LINK *link)
-  {
-  size_t bytes;
-  int partial_size, pos;
-  uchar tempbuf[RECV_BUFFER_SIZE];
 
-   bytes = link->port->available();
-     if(bytes <= 0)
-      return 0;
-
-     bytes = link->port->readBytes(tempbuf, bytes);
-
-     //Make sure we're not overflowing the buffer
-     while(bytes > 0)
-     {
-       if(link->rbuf_writeidx + bytes < RECV_BUFFER_SIZE)
-       {
-          proc_buf(tempbuf, bytes, link);
-          pos = 0;
-          return bytes;
-       }
-       else
-       {
-          //TODO: This part needs more througho testing, and doesn't seem to be working properly
-
-          printf("***too big! cur_idx: %d bytes_pending: %d\n", link->rbuf_writeidx, bytes);
-
-          partial_size = bytes - (RECV_BUFFER_SIZE - link->rbuf_writeidx);
-          bytes -= partial_size;
-
-          printf("processing subchunk: %d\n", partial_size);
-          proc_buf(&tempbuf[pos], partial_size, link);
-
-          pos += partial_size;
-          break;
-       }
-     }
-
-     return bytes;
-
-  }
-*/
-
-size_t check_link_rw(LINK *link)
+size_t check_new_bytes(LINK *link)
 {
   int bytes;
   int partial_size, pos;
@@ -192,32 +152,80 @@ RAW_FRAME extract_frame_from_rbuf(LINK *link)
 }
 
 
-//Turn a raw frame buffer into a FRAME struct. If intended for link layer, handle it immediately
-FRAME parse_raw_frame(RAW_FRAME raw)
+/***************************
+STORING RECEIVED FRAMES
+***************************/
+
+
+//Parses a raw frame buffer into a FRAME struct, and store it in the link's received queue. Used by end-nodes only.
+uint8_t parse_raw_and_store(RAW_FRAME raw, LINK *link)
 {
-  FRAME frame;  
-  uint16_t preamble = *((uint16_t*)&raw.buf[0]);
-  int i;
+	uint8_t i, j;
+	FRAME frame = raw_to_frame(raw);
+	
+  //make sure the received queue is not full
+  if (link->rqueue_pending == RECV_QUEUE_SIZE)
+  {
+    printf("Receive Queue is full! Dropping frame...\n");
+    free(raw.buf);
+    return 0;
+  }
+ 
+
+  //Find an empty slot to store the newly received frame, starting from the last sending index
+  for (i = link->rqueue_head, j = 0; j < RECV_QUEUE_SIZE; j++)
+  {
+    //Wrap index i around to the beginning if needed
+    if (i >= RECV_QUEUE_SIZE ) i = 0;
+	
+	//Check if this spot is marked free
+	if (link->recv_queue[i].size == 0) break;
+	
+	//Increment i to check the next slot
+	i++;
+  }
   
-  //print_bytes(buf, bytes);
+  //Store the frame
+  link->recv_queue[i] = frame;
+  link->rqueue_pending++;
+  
+  printf("*QUEUED:*\n");
+  print_frame(link->recv_queue[i]);
+  
+  printf("Buffered into recv_queue pos %d\n", i);
+  
+  return 1;
+	
+}
 
-  //Parse the header
-  frame = buf_to_frame(raw.buf);
+FRAME pop_recv_queue(LINK *link)
+{
+	FRAME retframe;
+	FRAME *curhead;
+	
+	//Make sure the recv queue has pending data first
+	if(link->rqueue_pending == 0)
+	{
+		retframe.size = 0;
+		return retframe;
+	}
+	
+	//Copy the current head out of the recv queue
+	curhead = &link->recv_queue[link->rqueue_head];
+	memcpy(&retframe, curhead, sizeof(FRAME));
+	
+	//Advances queue head and cleanup
+	if (++link->rqueue_head >= RECV_QUEUE_SIZE) 
+		link->rqueue_head = 0;
+	
+	curhead->size = 0;
+	link->rqueue_pending--;
+	
+	
+	//Remember to free the payload
 
-  //Check if payload is complete
-  if (raw.buf[FRAME_HEADER_SIZE] != STX)
-    printf("STX not found, packet header may be corrupt!\n");
-  if (raw.buf[FRAME_HEADER_SIZE + frame.size + 1] != ETX)
-    printf("ETX not found, packet may be corrupt or payload was truncated!\n");
 
-
-  printf("\n****************************\n");
-  print_frame(frame);
-  printf("\n****************************\n");
-
-  //Remember to free its payload when done!
-
-  return frame;
+	return retframe;
 }
 
 
@@ -243,7 +251,7 @@ uint8_t add_to_send_queue(RAW_FRAME raw, LINK *link)
   {
     //Wrap index i around to the beginning if needed
     if (i >= SEND_QUEUE_SIZE - 1) i = 0;
-    else if (i < SEND_QUEUE_SIZE - 1) i++;
+    else if (i < SEND_QUEUE_SIZE - 1) i++;		
 
     if (link->send_queue[i].size == 0) break;
   }
@@ -291,13 +299,13 @@ uint8_t transmit_next(LINK *link)
 
 uint8_t send_frame(FRAME frame, LINK *link)
 {
-	return add_to_send_queue(frame_to_buf(frame), link);
+	return add_to_send_queue(frame_to_raw(frame), link);
 }
 
 
 uint8_t create_send_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload, LINK *link)
 {
-	return add_to_send_queue(frame_to_buf(create_frame(src, dst, size, payload)), link);
+	return add_to_send_queue(frame_to_raw(create_frame(src, dst, size, payload)), link);
 }
 
 

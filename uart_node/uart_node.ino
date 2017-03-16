@@ -1,5 +1,6 @@
 #include "node.h"
 
+TRANSPORT tr;
 LINK link;
 uint8_t my_ID = 1;
 
@@ -22,11 +23,13 @@ void setup()
   stdout = &serial_stdout;
 
   printf("Serial Buffer: %d\n", SERIAL_RX_BUFFER_SIZE );
-  printf("Send queue size: %d\n", SEND_QUEUE_SIZE);
 
-  //Initializing link layer data for serial1
+  //Initializing transport layer data for serial1
   Serial1.begin(115200);
   link = link_init(&Serial1);
+  //tr = transport_initialize();
+  //transport_register_link(&tr, Serial1);
+  
 }
 
 
@@ -61,8 +64,14 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
     return;
   }
 
-  parse_raw_frame(raw);
-  free(raw.buf);
+  printf("\n****************************\n");
+  //FRAME frame = raw_to_frame(raw);
+  //print_frame(frame);
+  parse_raw_and_store(raw, link);
+  //free(frame.payload);
+  printf("\n****************************\n");
+
+  
 
   //Forward this singular packet otherwise
   //TODO: ARP table
@@ -73,7 +82,6 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
 
 void net_task()
 {
-  int i;
   size_t bytes;
   RAW_FRAME rawframe;
   
@@ -110,6 +118,7 @@ void net_task()
 
 //Testing RSPackets
 
+
 RSPACKET syn1 = create_rspacket_syn(0xE, 0xD, 0x3c);
 send_rspacket(syn1, &link);
 RSPACKET ack1 = create_rspacket_ack(0xE, 0xD, 0x3c, 0x1E9A, 0);
@@ -118,16 +127,23 @@ RSPACKET dat1 = create_rspacket_data(0xE, 0xD, 0x3c, 0x1E9A, 0, "ABCDEABCDEABCDE
 send_rspacket(dat1, &link);
 
 
+create_send_frame(0xc, 0x6, 0x13, "ABCDEFGHIJKLMNOPQRS", &link);
+create_send_frame(0xA, 0xC, 0x26, "xyxyxyxyxyxyxyxyxyxxyxyxyxyxyxyxyxyxyx", &link);
+create_send_frame(0xE, 0xD, 0x3c, "ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE", &link);
+
+
 
 
 
   printf("All sent! \n");
 
+  int i = 0, j=0;
+
   
   while (1)
   {
     //See if any new bytes are available for reading
-    bytes = check_link_rw(&link);
+    bytes = check_new_bytes(&link);
 
     //Check if buffer contains one or more complete packets
     if (bytes > 0 || link.rbuf_valid)
@@ -141,13 +157,49 @@ send_rspacket(dat1, &link);
         proc_buf(NULL, 0, &link);
         rawframe = extract_frame_from_rbuf(&link);
       }
+
+    
+    if(i >= 5)
+    {
+      //print buf
+      for(j = 0; j<RECV_QUEUE_SIZE; j++)
+      {
+        if(link.recv_queue[j].size > 0)
+        {
+          printf("recv_queue pos %d\n",j);
+          print_frame(link.recv_queue[j]);
+        }
+      }
+
+      printf("\n**************************************\n");
+      int curpending = link.rqueue_pending;
+      printf("pending: %d\n", curpending);
+      
+      for(j = 0; j<curpending; j++)
+      {
+         printf("\nloop %d\n", j);
+         
+         FRAME retframe = pop_recv_queue(&link);
+          print_frame(retframe);
+         free(retframe.payload);
+      }
+      
+      i = 0;
+    }
+    else i++;
+
+      
     }
 
     //Transmit a packet in the sending queue, if any
     transmit_next(&link);
 
-
     delay(100);
+
+      
+
+
+    
   }
 }
 

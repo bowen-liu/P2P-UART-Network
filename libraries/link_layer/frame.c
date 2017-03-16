@@ -28,29 +28,9 @@ FRAME create_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload)
 	return frame;
 }
 
-FRAME buf_to_frame(uchar* buf)
-{
-	FRAME frame;
-	
-	//Extract the frame headers
-	frame.preamble 	= *((uint16_t*)&buf[0]);
-	frame.dst 		= ((*((uint8_t*) &buf[2])) >> 4);
-	frame.src 		= (*((uint8_t*) &buf[2])) & 0x0F;
-	frame.size 		= *((uint8_t*)&buf[3]);
- 
- 
-	//create a new buffer for the payload
-	if(frame.size > 0)
-	{
-		frame.payload = malloc(frame.size);
-		memcpy(frame.payload, &buf[FRAME_HEADER_SIZE + 1], frame.size);
-	}
 
-	return frame;
-}
-
-
-RAW_FRAME frame_to_buf (FRAME frame)
+//Turns a structured FRAME into a RAW_FRAME for transmission
+RAW_FRAME frame_to_raw (FRAME frame)
 {
   RAW_FRAME raw_frame;
   raw_frame.size = FRAME_HEADER_SIZE + frame.size + 2;  //header size + payload size + "STX" + "ETX"
@@ -66,6 +46,41 @@ RAW_FRAME frame_to_buf (FRAME frame)
 
   return raw_frame;
 }
+
+
+//Turn a RAW_FRAME into a FRAME struct. If intended for link layer, handle it immediately
+FRAME raw_to_frame(RAW_FRAME raw)
+{
+  FRAME frame;  
+  int i;
+  
+	//Extract the frame headers
+	frame.preamble 	= *((uint16_t*) &raw.buf[0]);
+	frame.dst 		= ((*((uint8_t*) &raw.buf[2])) >> 4);
+	frame.src 		= (*((uint8_t*) &raw.buf[2])) & 0x0F;
+	frame.size 		= *((uint8_t*) &raw.buf[3]);
+ 
+ 
+	//create a new buffer for the payload
+	if(frame.size > 0)
+	{
+		frame.payload = malloc(frame.size);
+		memcpy(frame.payload, &raw.buf[FRAME_HEADER_SIZE + 1], frame.size); //removes "STX" and "ETX"
+	}
+	
+	
+	//Check if payload is complete
+	if (raw.buf[FRAME_HEADER_SIZE] != STX)
+		printf("STX not found, packet header may be corrupt!\n");
+	if (raw.buf[FRAME_HEADER_SIZE + frame.size + 1] != ETX)
+		printf("ETX not found, packet may be corrupt or payload was truncated!\n");
+
+  
+  //Remember to free its payload when done!
+
+  return frame;
+}
+
 
 
 void print_frame(FRAME frame)

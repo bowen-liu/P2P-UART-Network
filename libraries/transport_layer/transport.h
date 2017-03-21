@@ -12,24 +12,42 @@
 #define MAX_OUTBOUND_STREAMS		MAX_ADDRESS + 1
 #define MAX_RECEIVED_BUF        	8
 
+//Representing completed transfers
+typedef struct {
+
+	unsigned int src	: ADDRESS_WIDTH;
+	unsigned int dst	: ADDRESS_WIDTH;
+	uint32_t size    	: RSTREAM_SIZE_WIDTH;
+	
+	uchar* payload;				
+	
+} MESSAGE;
+
+
+
 
 //Generic Packet datatype used to return a newly received packet
-enum RECVD_TYPE {INVALID = 0, DATA, TRANSFER_REQ};
+enum RECVD_TYPE {INVALID = 0, MESSAGE_TYPE, STREAM_REQ_TYPE};
 
 typedef struct {
   
-  enum RECVD_TYPE type;
-  char *data;
-  RSPACKET transfer_req;
+	enum RECVD_TYPE type;
+  
+	union DATA 
+	{	 
+		MESSAGE message;
+		RSPACKET stream_req;
+		
+	} data;
 
 }RECVD_DATA;
 
 
+
+
+
 //transport layer stuff
 typedef struct {
-	
-	LINK *links;
-	uint8_t links_total;
 	
 	//Streams that are still in-flight
 	//static CONNECTION *in_streams;
@@ -71,10 +89,11 @@ extern "C" {
 #endif
 
 TRANSPORT transport_initialize();
-void transport_register_link(TRANSPORT *transport, HardwareSerial *port);
 
+
+RECVD_DATA parse_recvd_frame(FRAME frame);
 void transport_check_recv(TRANSPORT *tr);
-//ECVD_PACKET parse_recvd_frame(FRAME frame, size_t bytes);
+
 
 int send_umpacket(UMPACKET packet, LINK *link);
 int send_uspacket(USPACKET packet, LINK *link);

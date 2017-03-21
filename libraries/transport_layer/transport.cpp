@@ -9,10 +9,7 @@
 TRANSPORT transport_initialize()
 {
   TRANSPORT tr;
-  
-  tr.links_total = 0;
-  tr.recvd_count = 0;
-  
+   
   memset(tr.recvd_queue, 0, MAX_RECEIVED_BUF*sizeof(RECVD_DATA));
 
   //in_streams = calloc(MAX_INBOUND_STREAMS, sizeof(CONNECTION));
@@ -22,62 +19,54 @@ TRANSPORT transport_initialize()
 }
 
 
-void transport_register_link(TRANSPORT *tr, HardwareSerial *port)
-{
-	//Call the link layer function link_init to initialize the port
-	tr->links[tr->links_total] = link_init(port);
-	tr->links_total++;
-}
-
-
-
-void transport_check_recv(TRANSPORT *tr)
-{
-	int i;
-	
-	//Check the receive buffers of each registered link for new frames
-	for(i=0; i< tr->links_total; i++)
-	{
-		
-	}
-}
 
 /***************************
-  Receiving from Link Layer
+  Receive from Link Layer
 ***************************/
-
 //assumes frame.payload was malloc'd
-/*
-RECVD_PACKET parse_recvd_frame(FRAME frame, size_t bytes)
+
+//Process a frame received from the link layer. 
+RECVD_DATA parse_recvd_frame(FRAME frame)
 {
-	RECVD_PACKET recvd;
+	RECVD_DATA recvd;
 	uint16_t type = *((uint16_t*)&frame.payload[0]);
 	
+	//Todo: add to transport receive queue
 	switch(type)
 	{
 		case USPACKET_PREAMBLE:
-		
-		recvd.type = USPACKET_TYPE;
-		recvd.packet.uspacket = frame_to_uspacket(frame);
-		break;
+			recvd.type = MESSAGE_TYPE;
+			recvd.data.message.payload = frame.payload;
+			break;
+			
 		
 		case RSPACKET_SYN_PREAMBLE:
 		case RSPACKET_ACK_PREAMBLE:
-		case RSPACKET_DATA_PREAMBLE:
+			recvd.type = STREAM_REQ_TYPE;
+			recvd.data.stream_req = frame_to_rspacket(frame);
+			break;
 		
-		recvd.type = RSPACKET_TYPE;
-		recvd.packet.rspacket = frame_to_rspacket(frame);
-		break;
+		
+		case RSPACKET_DATA_PREAMBLE:
+			recvd.type = MESSAGE_TYPE;
+			recvd.data.message.payload = frame.payload;
+			break;
+
 		
 		//Treat all else as UMPACKETs
 		default:
-		recvd.type = UMPACKET_TYPE;
-		recvd.packet.umpacket = (UMPACKET) frame;
+			recvd.type = MESSAGE_TYPE;
+			recvd.data.message.payload = frame.payload;
+			
+			printf("\n*****\n");
+			print_frame(frame);
+			printf("\n*****\n");
+			break;
 	}
 
   return recvd;
 }
-*/
+
 
 
 

@@ -189,10 +189,11 @@ uint8_t parse_raw_and_store(RAW_FRAME raw, LINK *link)
   link->recv_queue[i] = frame;
   link->rqueue_pending++;
   
+  /*
   printf("*QUEUED:*\n");
   print_frame(link->recv_queue[i]);
-  
   printf("Buffered into recv_queue pos %d\n", i);
+  */
   
   return 1;
 	

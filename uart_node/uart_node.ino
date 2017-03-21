@@ -27,55 +27,26 @@ void setup()
   //Initializing transport layer data for serial1
   Serial1.begin(115200);
   link = link_init(&Serial1);
-  //tr = transport_initialize();
-  //transport_register_link(&tr, Serial1);
-  
+  tr = transport_initialize();
 }
 
 
 /******************************/
-//Switch
+//Node functions
 /******************************/
 
 void proc_raw_frames(RAW_FRAME raw, LINK *link)
 {
-  uint16_t preamble = *((uint16_t*)&raw.buf[0]);
-  uint8_t dest = ((*((uint8_t*) &raw.buf[2])) >> 4);
+  FRAME frame;
 
-  //Is this packet intended for the switch itself?
-  if(dest == 0)
-  {
-    printf("Link Packet!\n");
-    
-    //TODO: Handle whatever link-layer logic
+  //Parse the raw frame 
+  frame = raw_to_frame(raw);
+  free(raw.buf);
 
-    free(raw.buf);
-    return;
-  }
 
-  //Handle broadcast packets
-  if(dest == MAX_ADDRESS)
-  {
-    printf("Broadcasting Packet!\n");
-    
-    //TODO: Handle whatever link-layer logic
+  //Send the received frame to the transport layer for further processing
+  parse_recvd_frame(frame);
 
-    free(raw.buf);
-    return;
-  }
-
-  printf("\n****************************\n");
-  //FRAME frame = raw_to_frame(raw);
-  //print_frame(frame);
-  parse_raw_and_store(raw, link);
-  //free(frame.payload);
-  printf("\n****************************\n");
-
-  
-
-  //Forward this singular packet otherwise
-  //TODO: ARP table
-  //add_to_send_queue(raw, link);
 
 }
 
@@ -85,7 +56,7 @@ void net_task()
   size_t bytes;
   RAW_FRAME rawframe;
   
-  printf("Switch is starting...\n");
+  printf("Node is starting...\n");
 
   /*
   create_send_frame(0xc, 0x6, 0x13, "ABCDEFGHIJKLMNOPQRS", &link);
@@ -158,35 +129,7 @@ create_send_frame(0xE, 0xD, 0x3c, "ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE
         rawframe = extract_frame_from_rbuf(&link);
       }
 
-    
-    if(i >= 5)
-    {
-      //print buf
-      for(j = 0; j<RECV_QUEUE_SIZE; j++)
-      {
-        if(link.recv_queue[j].size > 0)
-        {
-          printf("recv_queue pos %d\n",j);
-          print_frame(link.recv_queue[j]);
-        }
-      }
 
-      printf("\n**************************************\n");
-      int curpending = link.rqueue_pending;
-      printf("pending: %d\n", curpending);
-      
-      for(j = 0; j<curpending; j++)
-      {
-         printf("\nloop %d\n", j);
-         
-         FRAME retframe = pop_recv_queue(&link);
-          print_frame(retframe);
-         free(retframe.payload);
-      }
-      
-      i = 0;
-    }
-    else i++;
 
       
     }

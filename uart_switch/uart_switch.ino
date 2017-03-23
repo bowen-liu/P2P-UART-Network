@@ -1,5 +1,6 @@
 #include "switch.h"
 
+
 LINK links[TOTAL_LINKS];
 
 /******************************/
@@ -24,7 +25,10 @@ void setup()
 
   //Initializing link layer data for serial1
    Serial1.begin(115200);
-   links[0] = link_init(&Serial1);
+   links[0] = link_init(&Serial1, GATEWAY);
+
+  //Send out a HELLO message out onto the link
+  send_probe_msg(0, &links[0]);
 }
 
 
@@ -45,15 +49,18 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
   uint8_t dest = ((*((uint8_t*) &raw.buf[2])) >> 4);
   int i;
 
+  FRAME frame;
+
   //Is this packet intended for the switch itself?
   if(dest == 0)
   {
-    printf("Link Packet!\n");
-    
-    //TODO: Handle whatever link-layer logic
+   //Parse the raw frame 
+   frame = raw_to_frame(raw);
+   free(raw.buf);
 
-    free(raw.buf);
-    return;
+   parse_routing_frame(frame, link);
+   free(frame.payload);
+   return;
   }
 
   //Handle broadcast packets
@@ -69,7 +76,7 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
 
 
   printf("\n****************************\n");
-  FRAME frame = raw_to_frame(raw);
+  frame = raw_to_frame(raw);
   print_frame(frame);
   free(frame.payload);
   printf("\n****************************\n");

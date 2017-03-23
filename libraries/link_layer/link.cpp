@@ -3,12 +3,13 @@
 
 //static uint8_t links_registered = 0;
 
-LINK link_init(HardwareSerial *port)
+LINK link_init(HardwareSerial *port, LINK_TYPE link_type)
 {
   LINK link;
 
   link.port = port;
-  //link.id = links_registered++;
+  link.link_type = link_type;
+  link.end_link_type = UNKNOWN;
   
   link.rbuf_writeidx = 0;
   link.rbuf_valid = 0;
@@ -17,14 +18,26 @@ LINK link_init(HardwareSerial *port)
   link.rqueue_head = 0;
   link.squeue_pending = 0;
   link.squeue_lastsent = 0;
+  link.rtable_entries = 0;
 
-
+  
   memset(link.recvbuf, 0, RECV_BUFFER_SIZE);
   memset(link.recv_queue, 0, RECV_QUEUE_SIZE * sizeof(FRAME));
   memset(link.send_queue, 0, SEND_QUEUE_SIZE * sizeof(RAW_FRAME));
+  
+  //memset(link.rtable, 0, RTABLE_LENGTH * sizeof(NODE));
+  for(int i=0; i<RTABLE_LENGTH; i++ )
+  {
+	link.rtable[i].id = 0;
+	link.rtable[i].hops = 0;
+  }
+  
 
   return link;
 }
+
+
+
 
 
 
@@ -136,6 +149,7 @@ RAW_FRAME extract_frame_from_rbuf(LINK *link)
 
   printf("Complete packet received! %u bytes!\n", raw_frame.size);
   print_bytes(&link->recvbuf[0], raw_frame.size);
+  printf("\n");
 
   //Allocate a new buffer for the raw packet for returning
   raw_frame.buf = malloc(raw_frame.size);
@@ -150,6 +164,8 @@ RAW_FRAME extract_frame_from_rbuf(LINK *link)
 
   return raw_frame;
 }
+
+
 
 
 /***************************
@@ -310,10 +326,255 @@ uint8_t create_send_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload
 }
 
 
+/***************************
+ROUTING
+***************************/
+
+
+uint8_t update_rtable_entry(uint8_t id, uint8_t hops, LINK *link)
+{
+	//Make sure the source id is valid
+	if(id == 0 || id >= MAX_ADDRESS)
+	{
+		printf("ERROR: Attempted to add a routing entry for address 0 (link-ctrl) or %d (broadcast)\n", MAX_ADDRESS);
+		return 0;
+	}
+	
+	//Make sure routing table isn't full yet (should never happen)
+	if(link->rtable_entries >= RTABLE_LENGTH)
+	{
+		printf("Routing Table Full! Dropping request...\n");
+		return 0;
+	}
+
+	//Increment the routing table entry count
+	if(link->rtable[id].id > 0)
+		printf("WARNING: Overwriting existing route entry for node %d\n", id);
+	else
+		link->rtable_entries++;
+	
+	//Update the entry
+	link->rtable[id].id = id;
+	link->rtable[id].hops = hops;
+	printf("Updated Routing entry: %d, %d hops\n", link->rtable[id].id, link->rtable[id].hops);
+	
+	return 1;
+}
 
 
 
 
+/***************************
+SENDING
+***************************/
+
+uint8_t send_probe_msg(uint8_t my_id, LINK *link)
+{
+	uint8_t pl_size = LINK_MSG_SIZE + 1;		//Buffer for preamble + hops
+	uchar msg[pl_size];		
+	
+	//Copy the preamble string to the payload
+	strncpy(msg, PROBE_PREAMBLE, LINK_MSG_SIZE);
+	
+	//Append my link type after the preamble
+	switch(link->link_type)
+	{
+		case GATEWAY:
+			msg[LINK_MSG_SIZE] = 's';
+			break;
+			
+		case ENDPOINT:
+			msg[LINK_MSG_SIZE] = 'n';
+			break;
+		
+		//UNKNOWN and other unexpected types
+		default:
+			msg[LINK_MSG_SIZE] = 0;
+	}
+	
+	print_bytes(msg, LINK_MSG_SIZE + 1);
+	
+	//Create and send out an "HELLO" message
+	create_send_frame(my_id, 0, pl_size, msg, link);
+	
+	return 0;
+}
+
+uint8_t send_join_msg(uint8_t my_id, LINK *link)
+{
+	uint8_t pl_size = LINK_MSG_SIZE + 1;		//Buffer for preamble + hops
+	uchar msg[pl_size];		
+	
+	//Copy the preamble string to the payload
+	strncpy(msg, JOIN_PREAMBLE, LINK_MSG_SIZE);
+	
+	//Append the initial hop count as 1
+	msg[LINK_MSG_SIZE] = 0x01;
+
+	print_bytes(msg, LINK_MSG_SIZE + 1);
+	
+	//Wait a random period (up to 1 second) before sending
+	//delayMicroseconds(rand() % 1000);
+	
+	//Create and send out an "HELLO" message
+	create_send_frame(my_id, 0, pl_size, msg, link);
+	
+	return 0;
+}
+
+
+
+uint8_t send_rtble_msg(uint8_t dst, LINK *link)
+{
+	uint8_t i, j, writeidx;
+	
+	uint8_t pl_size = LINK_MSG_SIZE + 1 + link->rtable_entries * NODE_LENGTH;
+	uchar msg[pl_size];		//Buffer for preamble + entries
+	
+	//Copy the preamble string to the payload
+	strncpy(msg, ROUTING_PREAMBLE, LINK_MSG_SIZE);
+	
+	//Append the number of routing entries that follows
+	msg[LINK_MSG_SIZE] = link->rtable_entries;
+	
+	//Append each of the node information to the payload
+	for(i=0, j=0; i<RTABLE_LENGTH; i++)
+	{
+		if(link->rtable[i].id > 0)
+		{
+			//Increment the write index for the payload
+			writeidx = LINK_MSG_SIZE + 1 + NODE_LENGTH*(j++);
+			
+			//Write the ID
+			msg[writeidx] = (uint8_t)link->rtable[i].id;
+			
+			//Write and increment the hops
+			msg[writeidx + 1] = (uint8_t)(link->rtable[i].hops + 1);
+		}
+	}
+	
+	printf("Written %d entries. Should be %d\n", j, link->rtable_entries);
+	print_bytes(msg, pl_size);
+	printf("\n");
+	
+	//Create and send out an "RTBLE" message
+	create_send_frame(0, dst, pl_size, msg, link);
+	
+	return 0;
+}
+
+
+/***************************
+PARSING
+***************************/
+
+uint8_t parse_probe_msg(FRAME frame, LINK *link)
+{
+	uint8_t end_id = frame.src;
+	uchar end_type = frame.payload[LINK_MSG_SIZE];
+	
+	//No need to process duplicate HELLO message if the current node has already received a HELLO from this link's other end earlier. This should be changed later to support recovery
+	if(link->end_link_type != UNKNOWN)
+	{
+		printf("Ignoring PROBE from known gateway/endpoint...\n");
+		return 0;
+	}
+	
+	printf("Parsed PROBE: %d, type: %c \n", end_id, end_type);
+	switch(end_type)
+	{
+		//Other end is a switch
+		case 's':
+			link->end_link_type = GATEWAY;
+			break;
+		
+		//Other end is an endpoint. Add the other end's ID into the routing table.
+		case 'n':
+			link->end_link_type = ENDPOINT;
+			update_rtable_entry(end_id, 1, link);
+			break;
+		
+		//Unknown or other unsupported link types
+		default:
+			link->end_link_type = UNKNOWN;
+
+	}
+	
+	
+	return 1;
+}
+
+
+uint8_t parse_join_msg(FRAME frame, LINK *link)
+{
+	uint8_t new_id = frame.src;
+	uint8_t new_hops = (uint8_t)frame.payload[LINK_MSG_SIZE];
+	
+	//Add the node's routing information to the table. The same index as its ID is used.
+	update_rtable_entry(new_id, new_hops, link);
+	printf("Parsed NJOIN: %d, %d hops\n", link->rtable[new_id].id, link->rtable[new_id].hops);
+	
+	//TODO: If switch, forward the packet to everyone else. Implement in the switch code
+	
+	//Reply with the current routing table
+	send_rtble_msg(new_id, link);
+	
+	return 1;
+}
+
+
+uint8_t parse_rtble_msg(FRAME frame, LINK *link)
+{
+	uint8_t entries = (uint8_t)frame.payload[LINK_MSG_SIZE];
+	uint8_t i, curid, curhops, readidx;
+	
+	printf("Parsed RTBLE Message with %d entries!\n", entries);
+
+	
+	for(i=0; i<entries; i++)
+	{
+		//Parse the next routing entry out of the message payload
+		readidx = LINK_MSG_SIZE + 1 + NODE_LENGTH*i;
+		curid = (uint8_t)frame.payload[readidx];
+		curhops = (uint8_t)frame.payload[readidx + 1];
+		
+		//Insert the current entry from the message into the routing table
+		printf("Parsed rtable update entry: %d, %d hops\n", curid, curhops);
+		update_rtable_entry(curid, curhops, link);	
+	}
+
+	return 0;
+}
+
+
+uint8_t parse_routing_frame(FRAME frame, LINK *link)
+{
+	if(strncmp(frame.payload, PROBE_PREAMBLE, LINK_MSG_SIZE) == 0)
+	{
+		printf("Found PROBE message!\n");
+		//print_frame(frame);
+		return parse_probe_msg(frame, link);
+	}
+	else if(strncmp(frame.payload, JOIN_PREAMBLE, LINK_MSG_SIZE) == 0)
+	{
+		printf("Found JOIN message!\n");
+		//print_frame(frame);
+		return parse_join_msg(frame, link);
+	}
+	else if(strncmp(frame.payload, ROUTING_PREAMBLE, LINK_MSG_SIZE) == 0)
+	{
+		printf("Found ROUTE message!\n");
+		//print_frame(frame);
+		return parse_rtble_msg(frame, link);
+	}
+	else
+	{
+		printf("Not a valid routing frame\n");
+		print_frame(frame);
+		return 0;
+	}
+		
+}
 
 
 

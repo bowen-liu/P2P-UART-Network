@@ -2,7 +2,7 @@
 
 TRANSPORT tr;
 LINK link;
-uint8_t my_ID = 1;
+uint8_t my_id = 1;
 
 /******************************/
 //Arduino Setup
@@ -26,14 +26,20 @@ void setup()
 
   //Initializing transport layer data for serial1
   Serial1.begin(115200);
-  link = link_init(&Serial1);
+  link = link_init(&Serial1, ENDPOINT);
   tr = transport_initialize();
+
+
+  //Send out a HELLO message out onto the link
+  send_probe_msg(my_id, &link);
 }
 
 
 /******************************/
 //Node functions
 /******************************/
+
+
 
 void proc_raw_frames(RAW_FRAME raw, LINK *link)
 {
@@ -42,6 +48,26 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
   //Parse the raw frame 
   frame = raw_to_frame(raw);
   free(raw.buf);
+
+  //Is this packet from the switch itself?
+  if(frame.src == 0)
+  {
+    parse_routing_frame(frame, link);
+    free(frame.payload);
+    return;
+  }
+
+  //Handle broadcast packets
+  if(frame.dst == MAX_ADDRESS)
+  {
+    printf("Broadcasting Packet!\n");
+    
+    //TODO: Handle whatever link-layer logic
+
+    free(raw.buf);
+    return;
+  }
+
 
 
   //Send the received frame to the transport layer for further processing
@@ -53,66 +79,17 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
 
 void net_task()
 {
+  uint8_t done = 0;
   size_t bytes;
   RAW_FRAME rawframe;
   
   printf("Node is starting...\n");
 
-  /*
-  create_send_frame(0xc, 0x6, 0x13, "ABCDEFGHIJKLMNOPQRS", &link);
-  create_send_frame(0xE, 0xD, 0x3c, "ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE", &link);
-  create_send_frame(0xA, 0xC, 0x26, "xyxyxyxyxyxyxyxyxyxxyxyxyxyxyxyxyxyxyx", &link);
-  */
   
-  
-
-//Testing uspacket
-
-/*
-  USPACKET us1 = create_uspacket(0xC, 0x6, 0xEAEA, 0x13, 0, 0x13, "ABCDEFGHIJKLMNOPQRS");
-
-  USPACKET us2 = create_uspacket(0xE, 0xD, 0x1E9A, 0x3c, 0, 0x3c, "ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE");
-
-  USPACKET us3 = create_uspacket(0xa, 0xc, 0x69AF, 0x26, 0, 0x26, "xyxyxyxyxyxyxyxyxyxxyxyxyxyxyxyxyxyxyx");
-
-  printf("\n**************\n");
-  print_uspacket(us1);
-  print_uspacket(us2);
-  print_uspacket(us3);
-  printf("\n**************\n");
-  
-  send_uspacket(us1, &link);
-  send_uspacket(us2, &link);
-  send_uspacket(us3, &link);
-
-*/
-
-//Testing RSPackets
-
-
-RSPACKET syn1 = create_rspacket_syn(0xE, 0xD, 0x3c);
-send_rspacket(syn1, &link);
-RSPACKET ack1 = create_rspacket_ack(0xE, 0xD, 0x3c, 0x1E9A, 0);
-send_rspacket(ack1, &link);
-RSPACKET dat1 = create_rspacket_data(0xE, 0xD, 0x3c, 0x1E9A, 0, "ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE");
-send_rspacket(dat1, &link);
-
-
-create_send_frame(0xc, 0x6, 0x13, "ABCDEFGHIJKLMNOPQRS", &link);
-create_send_frame(0xA, 0xC, 0x26, "xyxyxyxyxyxyxyxyxyxxyxyxyxyxyxyxyxyxyx", &link);
-create_send_frame(0xE, 0xD, 0x3c, "ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE", &link);
-
-
-
-
-
-  printf("All sent! \n");
-
-  int i = 0, j=0;
-
   
   while (1)
   {
+
     //See if any new bytes are available for reading
     bytes = check_new_bytes(&link);
 
@@ -128,21 +105,23 @@ create_send_frame(0xE, 0xD, 0x3c, "ABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDEABCDE
         proc_buf(NULL, 0, &link);
         rawframe = extract_frame_from_rbuf(&link);
       }
-
-
-
-      
     }
 
     //Transmit a packet in the sending queue, if any
     transmit_next(&link);
-
     delay(100);
 
+
+    //Send out test packets
+    if(link.end_link_type != UNKNOWN && !done)
+    {
+      done = 1;
       
+      send_join_msg(my_id, &link);
+      send_join_msg(3, &link);
+      send_join_msg(14, &link);
+    }
 
-
-    
   }
 }
 

@@ -26,8 +26,8 @@ LINK
 ***************************/
 
 
-#define RECV_BUFFER_SIZE  2*(MAX_PAYLOAD_SIZE + 16)     //add extra bytes for headers and other
-#define FLUSH_THRESHOLD   RECV_BUFFER_SIZE * 0.5
+#define RECV_BUFFER_SIZE  	2*(MAX_PAYLOAD_SIZE + 16)     //add extra bytes for headers and other
+#define FLUSH_THRESHOLD   	RECV_BUFFER_SIZE * 0.5
 
 #define RECV_QUEUE_SIZE		8
 #define SEND_QUEUE_SIZE   	8
@@ -56,6 +56,7 @@ typedef struct{
   HardwareSerial *port;
   LINK_TYPE link_type;					//What is this link configured as?
   LINK_TYPE end_link_type;				//What is the other end of this link configured as?
+  uint8_t id;							//My GUID
   
   
   //Raw Receive buffer for this link
@@ -86,7 +87,7 @@ typedef struct{
 //Functions
 
 
-LINK link_init(HardwareSerial *port, LINK_TYPE link_type);
+LINK link_init(HardwareSerial *port, uint8_t my_id, LINK_TYPE link_type);
 
 
 void proc_buf(uchar *rawbuf, size_t chunk_size, LINK *link);
@@ -96,6 +97,7 @@ RAW_FRAME extract_frame_from_rbuf(LINK *link);
 
 uint8_t parse_raw_and_store(RAW_FRAME raw, LINK *link);
 FRAME pop_recv_queue(LINK *link);
+uint8_t read_serial(LINK *link);
 
 uint8_t add_to_send_queue(RAW_FRAME raw, LINK *link);
 uint8_t transmit_next(LINK *link);

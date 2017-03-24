@@ -56,7 +56,7 @@ FRAME raw_to_frame(RAW_FRAME raw)
   
 	//Extract the frame headers
 	frame.preamble 	= *((uint16_t*) &raw.buf[0]);
-	frame.dst 		= ((*((uint8_t*) &raw.buf[2])) >> 4);
+	frame.dst 		= (*((uint8_t*) &raw.buf[2])) >> 4;
 	frame.src 		= (*((uint8_t*) &raw.buf[2])) & 0x0F;
 	frame.size 		= *((uint8_t*) &raw.buf[3]);
  

@@ -3,13 +3,14 @@
 
 //static uint8_t links_registered = 0;
 
-LINK link_init(HardwareSerial *port, LINK_TYPE link_type)
+LINK link_init(HardwareSerial *port, uint8_t my_id, LINK_TYPE link_type)
 {
   LINK link;
 
   link.port = port;
   link.link_type = link_type;
   link.end_link_type = UNKNOWN;
+  link.id = my_id;
   
   link.rbuf_writeidx = 0;
   link.rbuf_valid = 0;
@@ -69,7 +70,7 @@ void proc_buf(uchar *rawbuf, size_t chunk_size, LINK *link)
       
       if (preamble == FRAME_PREAMBLE)
       {
-        printf("Found a preamble: %X\n", preamble);      
+        //printf("Found a preamble: %X\n", preamble);      
         memcpy(&link->recvbuf[0], &link->recvbuf[i], (RECV_BUFFER_SIZE - i));
         link->rbuf_writeidx -= i;
         link->rbuf_valid = 1;
@@ -138,6 +139,7 @@ size_t check_new_bytes(LINK *link)
 }
 
 
+
 RAW_FRAME extract_frame_from_rbuf(LINK *link)
 {
   RAW_FRAME raw_frame;
@@ -147,9 +149,11 @@ RAW_FRAME extract_frame_from_rbuf(LINK *link)
   if (raw_frame.size <= 0)
     return raw_frame;
 
+  /*
   printf("Complete packet received! %u bytes!\n", raw_frame.size);
   print_bytes(&link->recvbuf[0], raw_frame.size);
   printf("\n");
+  */
 
   //Allocate a new buffer for the raw packet for returning
   raw_frame.buf = malloc(raw_frame.size);
@@ -164,8 +168,6 @@ RAW_FRAME extract_frame_from_rbuf(LINK *link)
 
   return raw_frame;
 }
-
-
 
 
 /***************************
@@ -246,6 +248,37 @@ FRAME pop_recv_queue(LINK *link)
 }
 
 
+uint8_t read_serial(LINK *link)
+{
+  uint8_t frames_received = 0;
+  size_t bytes;
+  RAW_FRAME rawframe;
+
+  //See if any new bytes are available for reading
+  bytes = check_new_bytes(link);
+
+  //Check if buffer contains one or more complete packets
+  if (!(bytes > 0 || link->rbuf_valid))
+	  return 0;
+  
+  //Extract frames from the raw receive buffer
+  rawframe = extract_frame_from_rbuf(link);
+  while(rawframe.size > 0)
+  {
+    //Parse the frame and store it in the recvd buffer
+	parse_raw_and_store(rawframe, link);
+    
+	//Check if the rbuf contains more complete packets
+    proc_buf(NULL, 0, link);
+    rawframe = extract_frame_from_rbuf(link);
+	frames_received++;
+  }	
+  
+  return frames_received;
+}
+
+
+
 
 
 /***************************
@@ -298,11 +331,15 @@ uint8_t transmit_next(LINK *link)
     if (link->send_queue[i].size > 0) break;
   }
 
-  //printf("PRETENDING to transmit: %d ", i);
-  //print_bytes(link->send_queue[i].buf, link->send_queue[i].size);
   
   //Transmit the packet out onto the link
   link->port->write(link->send_queue[i].buf, link->send_queue[i].size);
+  
+  /*
+  printf("\nTransmitting:\n");
+  print_frame(raw_to_frame(link->send_queue[i]));
+  printf("\n\n");
+  */
 
   
   //cleanup & mark this slot as free
@@ -392,9 +429,12 @@ uint8_t send_probe_msg(uint8_t my_id, LINK *link)
 			msg[LINK_MSG_SIZE] = 0;
 	}
 	
+	/*
 	print_bytes(msg, LINK_MSG_SIZE + 1);
+	printf("\n");*/
 	
 	//Create and send out an "HELLO" message
+	printf("Sending HELLO\n");
 	create_send_frame(my_id, 0, pl_size, msg, link);
 	
 	return 0;
@@ -411,12 +451,16 @@ uint8_t send_join_msg(uint8_t my_id, LINK *link)
 	//Append the initial hop count as 1
 	msg[LINK_MSG_SIZE] = 0x01;
 
+	/*
 	print_bytes(msg, LINK_MSG_SIZE + 1);
+	printf("\n");
+	*/
 	
 	//Wait a random period (up to 1 second) before sending
 	//delayMicroseconds(rand() % 1000);
 	
 	//Create and send out an "HELLO" message
+	printf("Sending JOIN\n");
 	create_send_frame(my_id, 0, pl_size, msg, link);
 	
 	return 0;
@@ -453,11 +497,14 @@ uint8_t send_rtble_msg(uint8_t dst, LINK *link)
 		}
 	}
 	
+	/*
 	printf("Written %d entries. Should be %d\n", j, link->rtable_entries);
 	print_bytes(msg, pl_size);
 	printf("\n");
+	*/
 	
 	//Create and send out an "RTBLE" message
+	printf("Sending RTBLE to %d\n", dst);
 	create_send_frame(0, dst, pl_size, msg, link);
 	
 	return 0;
@@ -480,7 +527,7 @@ uint8_t parse_probe_msg(FRAME frame, LINK *link)
 		return 0;
 	}
 	
-	printf("Parsed PROBE: %d, type: %c \n", end_id, end_type);
+	printf("Received PROBE from %d, type: %c \n", end_id, end_type);
 	switch(end_type)
 	{
 		//Other end is a switch
@@ -500,6 +547,9 @@ uint8_t parse_probe_msg(FRAME frame, LINK *link)
 
 	}
 	
+	//Send back a HELLO message again just in case if the one sent out initially was lost
+	send_probe_msg(link->id, link);
+	
 	
 	return 1;
 }
@@ -512,7 +562,7 @@ uint8_t parse_join_msg(FRAME frame, LINK *link)
 	
 	//Add the node's routing information to the table. The same index as its ID is used.
 	update_rtable_entry(new_id, new_hops, link);
-	printf("Parsed NJOIN: %d, %d hops\n", link->rtable[new_id].id, link->rtable[new_id].hops);
+	printf("Received NJOIN from %d, %d hops\n", link->rtable[new_id].id, link->rtable[new_id].hops);
 	
 	//TODO: If switch, forward the packet to everyone else. Implement in the switch code
 	
@@ -528,7 +578,7 @@ uint8_t parse_rtble_msg(FRAME frame, LINK *link)
 	uint8_t entries = (uint8_t)frame.payload[LINK_MSG_SIZE];
 	uint8_t i, curid, curhops, readidx;
 	
-	printf("Parsed RTBLE Message with %d entries!\n", entries);
+	printf("Received RTBLE with %d entries!\n", entries);
 
 	
 	for(i=0; i<entries; i++)

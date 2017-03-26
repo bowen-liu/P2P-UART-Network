@@ -1,6 +1,6 @@
 #include "node.h"
 
-TRANSPORT tr;
+//TRANSPORT tr;
 LINK link;
 uint8_t my_id = 1;
 
@@ -9,11 +9,12 @@ uint8_t my_id = 1;
 /******************************/
 
 FILE serial_stdout;
-
-int serial_putchar(char c, FILE* f) {
+int serial_putchar(char c, FILE* f)
+{
   if (c == '\n') serial_putchar('\r', f);
   return Serial.write(c) == 1 ? 0 : 1;
 }
+
 
 void setup()
 {
@@ -22,23 +23,19 @@ void setup()
   fdev_setup_stream(&serial_stdout, serial_putchar, NULL, _FDEV_SETUP_WRITE);
   stdout = &serial_stdout;
 
-  printf("Serial Buffer: %d\n", SERIAL_RX_BUFFER_SIZE );
-
   //Initializing transport layer data for serial1
   Serial1.begin(115200);
   link = link_init(&Serial1, my_id, ENDPOINT);
-  tr = transport_initialize();
-
+  //tr = transport_initialize();
 
   //Send out a HELLO message out onto the link
-  send_probe_msg(my_id, &link);
+  send_hello(my_id, 0, &link);
 }
 
 
 /******************************/
 //Node functions
 /******************************/
-
 
 
 void proc_frame(FRAME frame, LINK *link)
@@ -84,9 +81,9 @@ void net_task()
   while (1)
   {
     //Attempt to read serial. Process any pending frames if received anything new
-    if(read_serial(&link) > 0)
+    if (read_serial(&link) > 0)
     {
-      while(link.rqueue_pending > 0)
+      while (link.rqueue_pending > 0)
         proc_frame(pop_recv_queue(&link), &link);
     }
 
@@ -120,8 +117,8 @@ void net_task()
       create_send_frame(my_id, 14, 9, "FROM1TO14", &link);    //ok
       create_send_frame(my_id, 3, 8, "hellolol", &link);      //ok
       create_send_frame(my_id, 5, 5, "ifail", &link);         //not ok
-      
-      
+
+
 
       //Broadcast test
       printf("\n\n*TESTING BROADCAST*\n\n");

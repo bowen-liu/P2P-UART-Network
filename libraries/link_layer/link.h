@@ -1,8 +1,12 @@
 #ifndef _UARTNET_LINKH_
 #define _UARTNET_LINKH_
 
-#include <HardwareSerial.h>
 #include "frame.h"
+
+#include "Arduino.h"
+#include <HardwareSerial.h>
+
+
 
 /***************************
 ROUTING
@@ -13,10 +17,25 @@ ROUTING
 #define PROBE_PREAMBLE			((const char*) "!HELLO")
 #define JOIN_PREAMBLE          	((const char*) "!NJOIN")
 #define ROUTING_PREAMBLE		((const char*) "!RTBLE")
-
+#define LEAVE_PREAMBLE          ((const char*) "!LEAVE")
 
 #define SWITCH_LINK				's'
 #define NODE_LINK				'n'
+
+//#define TICK_MS					10000000	//In MS; 10 seconds per tick
+//#define PING_TICKS				30			//Ping every 5 minutes
+//#define PING_TICKS_THRESHOLD	33		
+
+//#define IGNORE_PING_UNDER		5000		//currently in MS, to be changed to TICKS
+
+
+#define TICK_MS					5000000		//In MS; 3 seconds per tick
+#define PING_TICKS				3			
+#define PING_TICKS_THRESHOLD	5	
+#define IGNORE_PING_UNDER		1000		//currently in MS, to be changed to TICKS
+
+
+
 
 
 
@@ -26,7 +45,8 @@ LINK
 ***************************/
 
 
-#define RECV_BUFFER_SIZE  	2*(MAX_PAYLOAD_SIZE + 16)     //add extra bytes for headers and other
+//#define RECV_BUFFER_SIZE  	2*(MAX_PAYLOAD_SIZE + 16)     //add extra bytes for headers and other
+#define RECV_BUFFER_SIZE  	MAX_PAYLOAD_SIZE 
 #define FLUSH_THRESHOLD   	RECV_BUFFER_SIZE * 0.5
 
 #define RECV_QUEUE_SIZE		8
@@ -40,9 +60,13 @@ LINK
 #define NODE_LENGTH		2		//size of id + hops
 typedef struct{
 	
-	uint8_t id;
 	uint8_t hops;
+	uint16_t rtt;						//RTT from the last PING/PONG
 	
+	uint8_t ticks;						//Ticks elapsed since last heard from this node
+	unsigned long last_ping_recvd;		//When was the last time a ping was received
+	unsigned long last_ping_sent;		//"Timestamp" of when a ping is sent to this node. Used to calculate RTT when this node replies to the ping
+
 }NODE;
 
 
@@ -108,15 +132,23 @@ uint8_t create_send_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload
 //rOUTING fUNCTIONS
 
 uint8_t update_rtable_entry(uint8_t id, uint8_t hops, LINK *link);
+//void check_alive(uint8_t *pending_ticks, LINK *link);
 
-uint8_t send_probe_msg(uint8_t my_id, LINK *link);
+uint8_t send_hello(uint8_t my_id, uint8_t dst_id, LINK *link);
+//uint8_t send_hello_msg(uint8_t my_id, uint8_t dst_id, LINK *link);
 uint8_t send_join_msg(uint8_t my_id, LINK *link);
 uint8_t send_rtble_msg(uint8_t dst, LINK *link);
+uint8_t send_leave_msg(uint8_t id, LINK *link);
 
 uint8_t parse_probe_msg(FRAME frame, LINK *link);
 uint8_t parse_join_msg(FRAME frame, LINK *link);
 uint8_t parse_rtble_msg(FRAME frame, LINK *link);
 uint8_t parse_routing_frame(FRAME frame, LINK *link);
+uint8_t parse_leave_msg(FRAME frame, LINK *link);
+
+
+
+
 
 
 

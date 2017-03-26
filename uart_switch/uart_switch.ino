@@ -1,18 +1,26 @@
 #include "switch.h"
 
-
 LINK links[TOTAL_LINKS];
 
 /******************************/
 //Arduino Setup
 /******************************/
 
-FILE serial_stdout;
+void timer1_isr()
+{
+  int i;
+  for (i = 0; i < TOTAL_LINKS; i++)
+    check_alive(&links[i]);
+}
 
-int serial_putchar(char c, FILE* f) {
+
+FILE serial_stdout;
+int serial_putchar(char c, FILE* f)
+{
   if (c == '\n') serial_putchar('\r', f);
   return Serial.write(c) == 1 ? 0 : 1;
 }
+
 
 void setup()
 {
@@ -21,7 +29,9 @@ void setup()
   fdev_setup_stream(&serial_stdout, serial_putchar, NULL, _FDEV_SETUP_WRITE);
   stdout = &serial_stdout;
 
-  printf("Serial Buffer: %d\n", SERIAL_RX_BUFFER_SIZE );
+  //Setup Timer
+  //Timer1.initialize(TICK_MS);
+  //Timer1.attachInterrupt(timer1_isr);
 
   //Initializing link layer data for serial1
   Serial1.begin(115200);
@@ -32,15 +42,62 @@ void setup()
   links[2] = link_init(&Serial3, 0, GATEWAY);
 
   //Send out a HELLO message out onto the link
-  send_probe_msg(0, &links[0]);
-  send_probe_msg(0, &links[1]);
-  send_probe_msg(0, &links[2]);
+  send_hello(0, 0, &links[0]);
+  send_hello(0, 0, &links[1]);
+  send_hello(0, 0, &links[2]);
 }
 
 
 /******************************/
 //Switch
 /******************************/
+
+void check_alive(LINK *link)
+{
+  int i, j;
+
+  //Loop through every routing table entry for each link. Skipping the 0th entry
+  for (j = 1; j < RTABLE_LENGTH; j++)
+  {
+    //Increment the tick count on every live end node
+    if (link->rtable[j].hops == 1)
+    {
+      //Increment the tick count for the current live node
+      ++link->rtable[j].ticks;
+
+      //Mark the node dead if tick threshold has been exceeded
+      if (link->rtable[j].ticks >= PING_TICKS_THRESHOLD)
+      {
+        link->rtable[j].hops = 0;
+        printf("ALERT: Node %d is declared dead!\n", j);
+
+        //Broadcast a LEAVE message if switch
+      }
+
+      //Ping the node if missed ticks has exceeded to PING_TICKS
+      else if (link->rtable[j].ticks >= PING_TICKS)
+      {
+        printf("Checking if %d is alive\n", j);
+        send_hello(0, j, link);
+      }
+    }
+  }
+}
+
+void reset_tick(uint8_t id)
+{
+  int i;
+
+  for (i = 0; i < TOTAL_LINKS; i++) {
+    if (links[i].rtable[id].hops > 0) {
+      links[i].rtable[id].ticks = 0;
+      break;
+    }
+  }
+
+  if (i == TOTAL_LINKS && links[i].rtable[id].hops == 0)
+    printf("ERROR: Could not find id %d\n", id);
+}
 
 uint8_t broadcast(FRAME frame)
 {
@@ -49,26 +106,20 @@ uint8_t broadcast(FRAME frame)
   uchar* pl_orig = frame.payload;
 
   //Loop through every link in the switch
-  for (i = 0; i < TOTAL_LINKS; i++) 
+  for (i = 0; i < TOTAL_LINKS; i++)
   {
-    //Loop through every routing table entry for each link. Skipping the 0th entry        
-    for (j = 1; j < RTABLE_LENGTH; j++) 
-    {
-      //Forward the frame if routing entry is valid, and it's not the sender    
-      if (links[i].rtable[j].id == j && links[i].rtable[j].id != frame.src) 
-      {
-        printf("Broadcasting to %d\n", j);
+    //Do not forward if the other end of the link is uninitialized, or the other end of the link is only the sender
+    if (links[i].end_link_type == UNKNOWN ||
+        (links[i].rtable[frame.src].hops == 1 && links[i].rtable_entries == 1))
+      continue;
 
-        //Make a new copy of the payload for each frame, since the transmitter will free them after transmission
-        frame.payload = malloc(frame.size);
-        memcpy(frame.payload, pl_orig, frame.size);
+    //Make a new copy of the payload for each frame, since the transmitter will free them after transmission
+    frame.payload = malloc(frame.size);
+    memcpy(frame.payload, pl_orig, frame.size);
 
-        //Change the destination to the current endpoint and transmit
-        frame.dst = j;
-        send_frame(frame, &links[i]);
-        ++sent_count;
-      }
-    }
+    //Change the destination to the current endpoint and transmit
+    send_frame(frame, &links[i]);
+    ++sent_count;
   }
 
   //Assuming raw.buf is freed by the caller
@@ -80,10 +131,14 @@ uint8_t broadcast(FRAME frame)
 void proc_raw_frames(RAW_FRAME raw, LINK *link)
 {
   uint16_t preamble = *((uint16_t*)&raw.buf[0]);
+  uint8_t src = (*((uint8_t*) &raw.buf[2])) & 0x0F;
   uint8_t dest = ((*((uint8_t*) &raw.buf[2])) >> 4);
   int i;
 
   FRAME frame;
+
+  //Reset the missed tick count for the sender
+  reset_tick(src);
 
   //Is this packet intended for the switch itself?
   if (dest == 0)
@@ -103,7 +158,7 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
     //Parse the raw frame
     frame = raw_to_frame(raw);
     free(raw.buf);
-    
+
     printf("Broadcast!\n");
     printf("Broadcasted frame to %d nodes\n", broadcast(frame));
     free(frame.payload);
@@ -113,7 +168,7 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
   //Find which port is the dst reachable
   for (i = 0; i < TOTAL_LINKS; i++)
   {
-    if (links[i].rtable[dest].id == dest)
+    if (links[i].rtable[dest].hops > 0)
       break;
     else if (i == TOTAL_LINKS - 1)
     {

@@ -15,17 +15,8 @@
 #include <TimerOne.h>
 
 
+void node_init();
+void net_task(uint8_t continuous);
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

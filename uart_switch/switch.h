@@ -9,9 +9,6 @@
 #include <TimerOne.h>
 
 
-
-
-
 //Link Layer Configuration
 #define TOTAL_LINKS         3
 #define SEND_QUEUE_SIZE     6
@@ -19,18 +16,8 @@
 #define FLUSH_THRESHOLD     RECV_BUFFER_SIZE * 0.5
 
 
+void switch_init();
+void switch_task(uint8_t continuous);
 
-
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

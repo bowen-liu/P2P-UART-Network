@@ -3,39 +3,38 @@
 
 //static uint8_t links_registered = 0;
 
-LINK link_init(HardwareSerial *port, uint8_t my_id, LINK_TYPE link_type)
+void link_init(HardwareSerial *port, uint8_t my_id, LINK_TYPE link_type, LINK *link)
 {
-  LINK link;
-
-  link.port = port;
-  link.link_type = link_type;
-  link.end_link_type = UNKNOWN;
-  link.id = my_id;
+  link->port = port;
+  link->link_type = link_type;
+  link->end_link_type = UNKNOWN;
+  link->id = my_id;
   
-  link.rbuf_writeidx = 0;
-  link.rbuf_valid = 0;
-  link.rbuf_expectedsize = 0;
-  link.rqueue_pending = 0;
-  link.rqueue_head = 0;
-  link.squeue_pending = 0;
-  link.squeue_lastsent = 0;
-  link.rtable_entries = 0;
+  link->rbuf_writeidx = 0;
+  link->rbuf_valid = 0;
+  link->rbuf_expectedsize = 0;
+  link->rqueue_pending = 0;
+  link->rqueue_head = 0;
+  link->squeue_pending = 0;
+  link->squeue_lastsent = 0;
+  link->rtable_entries = 0;
 
   
-  memset(link.recvbuf, 0, RECV_BUFFER_SIZE);
-  memset(link.recv_queue, 0, RECV_QUEUE_SIZE * sizeof(FRAME));
-  memset(link.send_queue, 0, SEND_QUEUE_SIZE * sizeof(RAW_FRAME));
+  memset(link->recvbuf, 0, RECV_BUFFER_SIZE);
+  memset(link->recv_queue, 0, RECV_QUEUE_SIZE * sizeof(FRAME));
+  memset(link->send_queue, 0, SEND_QUEUE_SIZE * sizeof(RAW_FRAME));
   
   //memset(link.rtable, 0, RTABLE_LENGTH * sizeof(NODE));
   for(int i=0; i<RTABLE_LENGTH; i++ )
   {
-	link.rtable[i].hops = 0;
-	link.rtable[i].rtt = 0;
-	link.rtable[i].ticks = 0;
+	link->rtable[i].hops = 0;
+	link->rtable[i].rtt = 0;
+	link->rtable[i].ticks = 0;
+	link->rtable[i].last_ping_recvd = 0;
+	link->rtable[i].last_ping_sent = 0;
   }
   
 
-  return link;
 }
 
 
@@ -69,7 +68,7 @@ void proc_buf(uchar *rawbuf, size_t chunk_size, LINK *link)
     {
       preamble = *((uint16_t*) &link->recvbuf[i]);
       
-      if (preamble == FRAME_PREAMBLE)
+      if (preamble == MFRAME_PREAMBLE || preamble == CFRAME_PREAMBLE)
       {
         //printf("Found a preamble: %X\n", preamble);      
         memcpy(&link->recvbuf[0], &link->recvbuf[i], (RECV_BUFFER_SIZE - i));
@@ -95,7 +94,7 @@ size_t check_complete_frame(LINK *link)
 {
   uint16_t preamble = *((uint16_t*)&link->recvbuf[0]);
 
-  if (preamble != FRAME_PREAMBLE)
+  if (preamble != MFRAME_PREAMBLE && preamble != CFRAME_PREAMBLE)
     return 0;
 
   //Set the expected payload size if full header has received
@@ -357,10 +356,14 @@ uint8_t send_frame(FRAME frame, LINK *link)
 	return add_to_send_queue(frame_to_raw(frame), link);
 }
 
-
 uint8_t create_send_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload, LINK *link)
 {
 	return add_to_send_queue(frame_to_raw(create_frame(src, dst, size, payload)), link);
+}
+
+uint8_t create_send_cframe(uint8_t src, uint8_t dst, uint8_t size, uchar *payload, LINK *link)
+{
+	return add_to_send_queue(frame_to_raw(create_cframe(src, dst, size, payload)), link);
 }
 
 
@@ -410,11 +413,11 @@ uint8_t send_hello_msg(uint8_t my_id, uint8_t dst_id, uint16_t msg_id, LINK *lin
 	switch(link->link_type)
 	{
 		case GATEWAY:
-			msg[LINK_MSG_SIZE] = 's';
+			msg[LINK_MSG_SIZE] = SWITCH_LINK_SYMBOL;
 			break;
 			
 		case ENDPOINT:
-			msg[LINK_MSG_SIZE] = 'n';
+			msg[LINK_MSG_SIZE] = NODE_LINK_SYMBOL;
 			break;
 		
 		//UNKNOWN and other unexpected types
@@ -433,7 +436,7 @@ uint8_t send_hello_msg(uint8_t my_id, uint8_t dst_id, uint16_t msg_id, LINK *lin
 	
 	//Create and send out an "HELLO" message
 	printf("Sending HELLO\n");
-	create_send_frame(my_id, 0, pl_size, msg, link);
+	create_send_cframe(my_id, 0, pl_size, msg, link);
 
 	return 0;
 }
@@ -477,20 +480,38 @@ uint8_t send_join_msg(uint8_t my_id, LINK *link)
 	printf("\n");
 	*/
 	
-	//Wait a random period (up to 1 second) before sending
-	//delayMicroseconds(rand() % 1000);
+	//Wait a random period (up to 3 second) before sending
+	delay(rand() % 3000);
 	
 	//Create and send out an "HELLO" message
 	printf("Sending JOIN\n");
-	create_send_frame(my_id, 0, pl_size, msg, link);
+	create_send_cframe(my_id, 0, pl_size, msg, link);
 	
 	return 0;
 }
 
 
 
-uint8_t send_leave_msg(uint8_t id, LINK *link)
+uint8_t send_leave_msg(uint8_t id, uchar reason, LINK *link)
 {
+	uint8_t pl_size = LINK_MSG_SIZE + 1;		//Buffer for preamble + reason 
+	uchar msg[pl_size];		
+
+	//Copy the preamble string to the payload
+	strncpy(msg, LEAVE_PREAMBLE, LINK_MSG_SIZE);
+	
+	//Append leave reason
+	msg[LINK_MSG_SIZE] = reason;
+	
+	/*
+	printf("Leave msg:");
+	print_bytes(msg, LINK_MSG_SIZE + 1);
+	printf("\n");
+	*/
+	
+	//Create and send out an "LEAVE" message
+	printf("Sending LEAVE for %d\n", id);
+	create_send_cframe(id, 0, pl_size, msg, link);
 
 	return 0;
 }
@@ -534,7 +555,7 @@ uint8_t send_rtble_msg(uint8_t dst, LINK *link)
 	
 	//Create and send out an "RTBLE" message
 	printf("Sending RTBLE to %d\n", dst);
-	create_send_frame(0, dst, pl_size, msg, link);
+	create_send_cframe(0, dst, pl_size, msg, link);
 	
 	return 0;
 }
@@ -553,7 +574,7 @@ uint8_t parse_hello_msg(FRAME frame, LINK *link)
 	unsigned long recv_time = millis();
 	int rtt;
 	uint16_t rtable_idx = end_id;
-	uint8_t reply = 0;		//0 = nothing, 1 = reply, 2 = resend 
+	uint8_t reply = 0;				//0 = nothing, 1 = reply, 2 = resend 
 	
 	printf("Received PROBE from %d, type: %c , msg_id: %hu, ", end_id, end_type, msg_id);
 	
@@ -567,13 +588,13 @@ uint8_t parse_hello_msg(FRAME frame, LINK *link)
 		switch(end_type)
 		{
 			//Other end is a switch
-			case 's':
+			case SWITCH_LINK_SYMBOL:
 				printf("Other end is a GATEWAY\n");
 				link->end_link_type = GATEWAY;
 				break;
 			
 			//Other end is an endpoint. Add the other end's ID into the routing table.
-			case 'n':
+			case NODE_LINK_SYMBOL:
 				printf("Other end is an ENDPOINT\n");
 				link->end_link_type = ENDPOINT;
 				update_rtable_entry(end_id, 1, link);
@@ -588,46 +609,11 @@ uint8_t parse_hello_msg(FRAME frame, LINK *link)
 	
 	//Reset the sender's missed tick count
 	link->rtable[rtable_idx].
-	
-	/*
-	//Update the RTT of this node only if the msg_id matches the HELLO I last sent. This indicates the message is a reply to my prior HELLO
-	if(msg_id == (uint16_t)link->rtable[rtable_idx].last_ping_sent)
-	{
-		rtt = recv_time - link->rtable[rtable_idx].last_ping_sent;
-		printf("rtt: %d ms\n", rtt);
-		
-		//Make sure RTT is positive (in case of system counter overflow)
-		if(rtt < 0)
-			reply = 1;
-		else
-			link->rtable[end_id].rtt = rtt;
-	}
-	else
-		reply = 1;
 
-	
-	//Resending a new to the HELLO if needed
-	if (reply == 2 || rtt < 0)
-	{
-		printf("Resending to PROBE...\n");
-		send_hello(link->id, end_id, link);
-	}
-	
-	//Replying to an incoming HELLO
-	else if(reply == 1)
-	{
-		printf("Replying to PROBE...\n");
-		send_hello_msg(link->id, end_id, msg_id, link);
-	}
-	
-	return 1;
-	*/
-	
 	rtt = recv_time - link->rtable[rtable_idx].last_ping_sent;
 	printf("rtt: %d ms\n", rtt);
 	
-	
-	
+	//Reply to this HELLO message if necessary
 	if (reply || (recv_time - link->rtable[rtable_idx].last_ping_recvd) > IGNORE_PING_UNDER)
 	{
 		printf("Replying to PROBE...\n");
@@ -653,7 +639,7 @@ uint8_t parse_join_msg(FRAME frame, LINK *link)
 	
 	//TODO: If switch, forward the packet to everyone else. Implement in the switch code
 	
-	//Reply with the current routing table
+	//Reply with the current routing table. //TODO: Reply all routing tables
 	send_rtble_msg(new_id, link);
 	
 	return 1;
@@ -663,6 +649,14 @@ uint8_t parse_join_msg(FRAME frame, LINK *link)
 
 uint8_t parse_leave_msg(FRAME frame, LINK *link)
 {
+	uint8_t leave_id = frame.src;
+	uchar reason = (uint8_t)frame.payload[LINK_MSG_SIZE];
+	
+	//Remove the node's routing information to the table. The same index as its ID is used.
+	update_rtable_entry(leave_id, 0, link);
+	printf("Received LEAVE from %d, %c\n", leave_id, reason);
+	
+	//TODO: If switch, forward the packet to everyone else. Implement in the switch code
 	
 	return 1;
 }
@@ -673,8 +667,11 @@ uint8_t parse_rtble_msg(FRAME frame, LINK *link)
 	uint8_t entries = (uint8_t)frame.payload[LINK_MSG_SIZE];
 	uint8_t i, curid, curhops, readidx;
 	
+	//Switches do not parse anyone else's routing table
+	if(link->link_type == GATEWAY) 
+		return;
+	
 	printf("Received RTBLE with %d entries!\n", entries);
-
 	
 	for(i=0; i<entries; i++)
 	{
@@ -685,40 +682,52 @@ uint8_t parse_rtble_msg(FRAME frame, LINK *link)
 		
 		//Insert the current entry from the message into the routing table
 		printf("Parsed rtable update entry: %d, %d hops\n", curid, curhops);
-		update_rtable_entry(curid, curhops, link);	
+		if(curid != link->id)	update_rtable_entry(curid, curhops, link);	
 	}
 
 	return 0;
 }
 
 
-uint8_t parse_routing_frame(FRAME frame, LINK *link)
+CMSG_T parse_control_frame(FRAME frame, LINK *link)
 {
+	//Do not attempt to process a message frame
+	if(frame.preamble != CFRAME_PREAMBLE)
+	{
+		printf("Not a Control frame\n");
+		return Invalid_CFrame;
+	}
+	
+	//Call the corresponding processing function depending on the control message in the payload
 	if(strncmp(frame.payload, PROBE_PREAMBLE, LINK_MSG_SIZE) == 0)
 	{
 		printf("Found PROBE message!\n");
-		return parse_hello_msg(frame, link);
+		parse_hello_msg(frame, link);
+		return Hello_Frame;
 	}
 	else if(strncmp(frame.payload, JOIN_PREAMBLE, LINK_MSG_SIZE) == 0)
 	{
 		printf("Found JOIN message!\n");
-		return parse_join_msg(frame, link);
+		parse_join_msg(frame, link);
+		return Join_Frame;
 	}
 	else if(strncmp(frame.payload, ROUTING_PREAMBLE, LINK_MSG_SIZE) == 0)
 	{
 		printf("Found ROUTE message!\n");
-		return parse_rtble_msg(frame, link);
+		parse_rtble_msg(frame, link);
+		return Rtble_Frame;
 	}
 	else if(strncmp(frame.payload, LEAVE_PREAMBLE, LINK_MSG_SIZE) == 0)
 	{
 		printf("Found LEAVE message!\n");
-		return parse_leave_msg(frame, link);
+		parse_leave_msg(frame, link);
+		return Leave_Frame;
 	}
 	else
 	{
-		printf("Not a valid routing frame\n");
+		printf("Unknown Control frame\n");
 		print_frame(frame);
-		return 0;
+		return Invalid_CFrame;
 	}
 		
 }

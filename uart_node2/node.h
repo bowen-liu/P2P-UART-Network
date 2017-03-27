@@ -1,5 +1,5 @@
-#ifndef _UARTNET_NODEH_
-#define _UARTNET_NODEH_
+#ifndef _UARTNET_NODE2H_
+#define _UARTNET_NODE2H_
 
 //#include "link_layer/link.h"
 #include <frame.h>

@@ -21,6 +21,9 @@ void mframe_parser(FRAME frame)
     print_frame(frame);
   }
 
+
+
+
   delay(1000);
 
 }
@@ -31,11 +34,11 @@ void setup()
   stdout_uart_init();
 
   //Setup the network
-  link = node_init(1, mframe_parser);
+  link = node_init(2, mframe_parser);
   send_join_msg(link->id, link);
 
   //Initial
-  create_send_frame(link->id, 2, 5, "!PING", link);
+  create_send_frame(link->id, 1, 5, "!PONG", link);
 }
 
 

@@ -61,9 +61,12 @@ uint8_t broadcast(FRAME frame)
   for (i = 0; i < TOTAL_LINKS; i++)
   {
     //Do not forward if the other end of the link is uninitialized, or the other end of the link is only the sender
-    if (links[i].end_link_type == UNKNOWN ||
-        (links[i].rtable[frame.src].hops == 1 && links[i].rtable_entries == 1))
+    //if (links[i].end_link_type == UNKNOWN ||(links[i].rtable[frame.src].hops == 1 && links[i].rtable_entries == 1))
+    //Do not forward if the other end of the link is uninitialized, or the other end of the link can reach the sender
+    if (links[i].end_link_type == UNKNOWN || links[i].rtable[frame.src].hops > 0)
       continue;
+
+    //printf("Link %d\n", i);
 
     //Make a new copy of the payload for each frame, since the transmitter will free them after transmission
     frame.payload = malloc(frame.size);
@@ -84,6 +87,9 @@ void reset_tick(uint8_t id)
 {
   int i;
 
+  if (id == 0 || id == MAX_ADDRESS)
+    return;
+
   for (i = 0; i < TOTAL_LINKS; i++) {
     if (links[i].rtable[id].hops > 0) {
       links[i].rtable[id].ticks = 0;
@@ -101,7 +107,7 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
   uint16_t preamble = *((uint16_t*)&raw.buf[0]);
   uint8_t src = (*((uint8_t*) &raw.buf[2])) & 0x0F;
   uint8_t dest = ((*((uint8_t*) &raw.buf[2])) >> 4);
-  int i;
+  uint8_t i, retval;
 
   FRAME frame;
 
@@ -109,13 +115,27 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
   reset_tick(src);
 
   //Is this packet intended for the switch itself?
-  if (dest == 0)
+  if (dest == 0 || preamble == CFRAME_PREAMBLE)
   {
     //Parse the raw frame
     frame = raw_to_frame(raw);
     free(raw.buf);
 
-    parse_routing_frame(frame, link);
+    //Handle the control frame
+    retval = parse_control_frame(frame, link);
+
+    //Broadcast Join frames
+    if (retval == Join_Frame)
+    {
+      printf("Broadcasting JOIN frame to all other nodes\n");
+
+      //Add 1 to hops
+      int hops = *((uint8_t*)&frame.payload[LINK_MSG_SIZE]);
+      frame.dst = MAX_ADDRESS;
+      frame.payload[LINK_MSG_SIZE] = ++hops;
+      broadcast(frame);
+    }
+
     free(frame.payload);
     return;
   }
@@ -133,7 +153,9 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
     return;
   }
 
-  //Find which port is the dst reachable
+
+
+  //Find which port is the dst reachable at
   for (i = 0; i < TOTAL_LINKS; i++)
   {
     if (links[i].rtable[dest].hops > 0)
@@ -147,6 +169,7 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
   }
 
   //Forward the frame
+  printf("src: %u, dst: %u, outlink: %u\n", src, dest, i);
   add_to_send_queue(raw, &links[i]);
 
 }
@@ -195,24 +218,23 @@ void switch_init()
 
   //Initializing link layer data for serial1
   Serial1.begin(115200);
-  links[0] = link_init(&Serial1, 0, GATEWAY);
   Serial2.begin(115200);
-  links[1] = link_init(&Serial2, 0, GATEWAY);
   Serial3.begin(115200);
-  links[2] = link_init(&Serial3, 0, GATEWAY);
+
+  link_init(&Serial1, 0, GATEWAY, &links[0]);
+  link_init(&Serial2, 0, GATEWAY, &links[1]);
+  link_init(&Serial3, 0, GATEWAY, &links[2]);
 
   //Send out a HELLO message out onto the link
-  send_hello(0, 0, &links[0]);
-  send_hello(0, 0, &links[1]);
-  send_hello(0, 0, &links[2]);
+  //send_hello(0, 0, &links[0]);
+  //send_hello(0, 0, &links[1]);      //TODO: Sometimes a link connected to an OFF device may lead to loopback. Handle this case.
+  //send_hello(0, 0, &links[2]);
 }
 
 
 void switch_task(uint8_t continuous)
 {
   int i;
-  size_t bytes;
-  RAW_FRAME rawframe;
 
   while (1)
   {
@@ -225,6 +247,8 @@ void switch_task(uint8_t continuous)
       //Transmit a packet in the sending queue, if any
       transmit_next(&links[i]);
     }
+
+    delay(100);
 
     //Only run 1 iteration of send/receive if not in continuous mode
     if (!continuous) break;

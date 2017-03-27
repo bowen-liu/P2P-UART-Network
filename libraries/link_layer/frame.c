@@ -9,6 +9,7 @@ void print_bytes(uchar *buf, size_t bytes)
 		//if(i%2 == 0)printf(" ");
 		printf("%02X", buf[i]);
 	}
+	printf("\n");
 }
 
 //We always assume the payloads for frames are not dynamically allocated
@@ -16,7 +17,24 @@ FRAME create_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload)
 {
 	FRAME frame;
 	
-	frame.preamble = FRAME_PREAMBLE;
+	frame.preamble = MFRAME_PREAMBLE;
+	frame.src = src;
+	frame.dst = dst;
+	frame.size = size;
+ 
+	frame.payload = payload;
+	//frame.payload = malloc(frame.size);
+	//memcpy(frame.payload, payload, frame.size);
+	
+	return frame;
+}
+
+
+FRAME create_cframe(uint8_t src, uint8_t dst, uint8_t size, uchar *payload)
+{
+	FRAME frame;
+	
+	frame.preamble = CFRAME_PREAMBLE;
 	frame.src = src;
 	frame.dst = dst;
 	frame.size = size;

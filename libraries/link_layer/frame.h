@@ -9,7 +9,8 @@
 typedef unsigned char uchar;
 
 //Link Layer Frames
-#define FRAME_PREAMBLE          0x84CD      //SOH + M
+#define MFRAME_PREAMBLE         	0x81CD      //SOH + M	(Used for Messages)
+#define CFRAME_PREAMBLE				0x81C3		//SOH + C	(Used for Network Control)
 
 //"Start of Text" and "End of Text" ASCII character that wraps around payload
 #define STX 0x2   
@@ -22,13 +23,13 @@ typedef unsigned char uchar;
 #define CHECKSUM_WIDTH				8
 
 //maximum numerical values support by user configurable header fields
-#define MAX_ADDRESS          (1 << ADDRESS_WIDTH) - 1 
-#define MAX_PAYLOAD_SIZE      (1 << PAYLOAD_SIZE_WIDTH) - 1 
-#define MAX_STREAM_SIZE       (1 << STREAM_SIZE_WIDTH) - 1 
-#define MAX_ID            (1 << ID_WIDTH) - 1 
+#define MAX_ADDRESS					(1 << ADDRESS_WIDTH) - 1 
+#define MAX_PAYLOAD_SIZE			(1 << PAYLOAD_SIZE_WIDTH) - 1 
+#define MAX_STREAM_SIZE				(1 << STREAM_SIZE_WIDTH) - 1 
+#define MAX_ID						(1 << ID_WIDTH) - 1 
 
 //Header size of the frame in bytes
-#define FRAME_HEADER_SIZE     (PREAMBLE_WIDTH + 2*ADDRESS_WIDTH + PAYLOAD_SIZE_WIDTH) /8
+#define FRAME_HEADER_SIZE			(PREAMBLE_WIDTH + 2*ADDRESS_WIDTH + PAYLOAD_SIZE_WIDTH) /8
 
 
 //Frame format
@@ -66,6 +67,7 @@ void print_bytes(uchar *buf, size_t bytes);
 void print_frame(FRAME frame);
 
 FRAME create_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload);
+FRAME create_cframe(uint8_t src, uint8_t dst, uint8_t size, uchar *payload);
 FRAME buf_to_frame(uchar* buf);
 RAW_FRAME frame_to_raw (FRAME frame);
 FRAME raw_to_frame(RAW_FRAME raw);

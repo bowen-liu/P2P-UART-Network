@@ -12,6 +12,8 @@
 ROUTING
 ***************************/
 
+typedef enum {Invalid_CFrame = 0, Hello_Frame, Join_Frame, Rtble_Frame, Leave_Frame} CMSG_T;
+
 //Link Layer messages
 #define LINK_MSG_SIZE               6
 #define PROBE_PREAMBLE			((const char*) "!HELLO")
@@ -19,9 +21,16 @@ ROUTING
 #define ROUTING_PREAMBLE		((const char*) "!RTBLE")
 #define LEAVE_PREAMBLE          ((const char*) "!LEAVE")
 
-#define SWITCH_LINK				's'
-#define NODE_LINK				'n'
+//For PROBE messages
+#define SWITCH_LINK_SYMBOL				's'
+#define NODE_LINK_SYMBOL				'n'
 
+//For LEAVE messages (Leave Reason)
+#define PLANNED_LEAVE_SYMBOL			'p'
+#define	UNPLANNED_LEAVE_SYMBOL			'u'
+
+
+//Timer settings for active monitoring
 //#define TICK_MS					10000000	//In MS; 10 seconds per tick
 //#define PING_TICKS				30			//Ping every 5 minutes
 //#define PING_TICKS_THRESHOLD	33		
@@ -32,7 +41,7 @@ ROUTING
 #define TICK_MS					5000000		//In MS; 3 seconds per tick
 #define PING_TICKS				3			
 #define PING_TICKS_THRESHOLD	5	
-#define IGNORE_PING_UNDER		1000		//currently in MS, to be changed to TICKS
+#define IGNORE_PING_UNDER		10000		//currently in MS, to be changed to TICKS
 
 
 
@@ -111,8 +120,7 @@ typedef struct{
 //Functions
 
 
-LINK link_init(HardwareSerial *port, uint8_t my_id, LINK_TYPE link_type);
-
+void link_init(HardwareSerial *port, uint8_t my_id, LINK_TYPE link_type, LINK *link);
 
 void proc_buf(uchar *rawbuf, size_t chunk_size, LINK *link);
 size_t check_new_bytes(LINK *link);
@@ -131,8 +139,8 @@ uint8_t create_send_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload
 
 //rOUTING fUNCTIONS
 
+CMSG_T parse_control_frame(FRAME frame, LINK *link);
 uint8_t update_rtable_entry(uint8_t id, uint8_t hops, LINK *link);
-//void check_alive(uint8_t *pending_ticks, LINK *link);
 
 uint8_t send_hello(uint8_t my_id, uint8_t dst_id, LINK *link);
 //uint8_t send_hello_msg(uint8_t my_id, uint8_t dst_id, LINK *link);
@@ -143,7 +151,6 @@ uint8_t send_leave_msg(uint8_t id, LINK *link);
 uint8_t parse_probe_msg(FRAME frame, LINK *link);
 uint8_t parse_join_msg(FRAME frame, LINK *link);
 uint8_t parse_rtble_msg(FRAME frame, LINK *link);
-uint8_t parse_routing_frame(FRAME frame, LINK *link);
 uint8_t parse_leave_msg(FRAME frame, LINK *link);
 
 

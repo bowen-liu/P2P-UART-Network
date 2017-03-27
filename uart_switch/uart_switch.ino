@@ -8,6 +8,7 @@ void setup()
   stdout_uart_init();
 
   switch_init();
+  printf("Switch Starting...\n");
 }
 
 

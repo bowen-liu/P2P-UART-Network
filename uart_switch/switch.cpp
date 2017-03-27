@@ -147,8 +147,8 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
     frame = raw_to_frame(raw);
     free(raw.buf);
 
-    printf("Broadcast!\n");
-    printf("Broadcasted frame to %d nodes\n", broadcast(frame));
+    printf("Bcast from %u. ", frame.src);
+    printf("Forwarded to %d links\n", broadcast(frame));
     free(frame.payload);
     return;
   }

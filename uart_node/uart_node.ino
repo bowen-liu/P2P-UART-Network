@@ -5,10 +5,11 @@ LINK *link;
 
 uint8_t msg_src_expected = 3;
 uint8_t msg_dst = 2;
+int i = 0;
 
 void mframe_parser(FRAME frame)
 {
-  if(frame.src != msg_src_expected)
+  if(frame.src != msg_src_expected && frame.dst != MAX_ADDRESS)
   {
     printf("Unexpected frame from %d\n", frame.src);
     print_frame(frame);
@@ -25,12 +26,24 @@ void mframe_parser(FRAME frame)
     printf("Pong from %u\n", frame.src);
     create_send_frame(link->id, msg_dst, 5, "!PING", link);
   }
+  else if(strncmp(frame.payload, "!BANG", 5) == 0)
+  {
+    printf("***BANG*** from %u\n", frame.src);
+  }
   else
   {
     printf("UNKNOWN from %u\n", frame.src);
     print_frame(frame);
   }
-  delay(500);
+  delay(250);
+
+  //Broadcast a "BANG" every few messages
+  if(i >= 10)
+  {
+    create_send_frame(link->id, MAX_ADDRESS, 5, "!BANG", link);
+    i =0;
+  }
+  else i++;
 
 }
 

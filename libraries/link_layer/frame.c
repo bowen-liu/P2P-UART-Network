@@ -66,7 +66,7 @@ RAW_FRAME frame_to_raw (FRAME frame)
 }
 
 
-//Turn a RAW_FRAME into a FRAME struct. If intended for link layer, handle it immediately
+//Turn a RAW_FRAME into a FRAME struct. 
 FRAME raw_to_frame(RAW_FRAME raw)
 {
   FRAME frame;  

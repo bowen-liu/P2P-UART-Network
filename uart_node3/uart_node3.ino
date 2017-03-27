@@ -3,8 +3,8 @@
 
 LINK *link;
 
-uint8_t msg_src_expected = 1;
-uint8_t msg_dst = 3;
+uint8_t msg_src_expected = 2;
+uint8_t msg_dst = 1;
 
 void mframe_parser(FRAME frame)
 {
@@ -31,6 +31,7 @@ void mframe_parser(FRAME frame)
     print_frame(frame);
   }
   delay(500);
+
 }
 
 void setup()
@@ -39,11 +40,11 @@ void setup()
   stdout_uart_init();
 
   //Setup the network
-  link = node_init(2, mframe_parser);
+  link = node_init(3, mframe_parser);
   send_join_msg(link->id, link);
 
   //Initial
-  create_send_frame(link->id, msg_dst, 5, "!PONG", link);
+  create_send_frame(link->id, msg_dst, 5, "!PING", link);
 }
 
 

@@ -1,7 +1,6 @@
 /*This file must be declared as a .cpp file since it uses the HardwareSerial Object from Arduino's library*/
 #include "link.h"
 
-//static uint8_t links_registered = 0;
 
 void link_init(HardwareSerial *port, uint8_t my_id, LINK_TYPE link_type, LINK *link)
 {
@@ -36,10 +35,6 @@ void link_init(HardwareSerial *port, uint8_t my_id, LINK_TYPE link_type, LINK *l
   
 
 }
-
-
-
-
 
 
 /***************************
@@ -179,13 +174,16 @@ STORING RECEIVED FRAMES
 uint8_t parse_raw_and_store(RAW_FRAME raw, LINK *link)
 {
 	uint8_t i, j;
-	FRAME frame = raw_to_frame(raw);
+	FRAME frame;
+	
+	//Parse the RAW_FRAME into a structured FRAME
+	frame = raw_to_frame(raw);
+	free(raw.buf);
 	
   //make sure the received queue is not full
   if (link->rqueue_pending == RECV_QUEUE_SIZE)
   {
     printf("Receive Queue is full! Dropping frame...\n");
-    free(raw.buf);
     return 0;
   }
  
@@ -441,18 +439,6 @@ uint8_t send_hello_msg(uint8_t my_id, uint8_t dst_id, uint16_t msg_id, LINK *lin
 	return 0;
 }
 
-/*
-uint8_t send_hello(uint8_t my_id, uint8_t dst_id, LINK *link)
-{
-	uint16_t msg_id;
-	
-	link->rtable[dst_id].last_ping_sent = millis();
-	msg_id = (uint16_t)link->rtable[dst_id].last_ping_sent;
-	
-	return send_hello_msg(my_id, 0, msg_id, link);
-}
-*/
-
 uint8_t send_hello(uint8_t my_id, uint8_t dst_id, LINK *link)
 {
 	uint16_t msg_id;
@@ -680,9 +666,10 @@ uint8_t parse_rtble_msg(FRAME frame, LINK *link)
 		curid = (uint8_t)frame.payload[readidx];
 		curhops = (uint8_t)frame.payload[readidx + 1];
 		
-		//Insert the current entry from the message into the routing table
+		//Insert the current entry from the message into the routing table. TODO: Proper support of virtual interfaces
 		printf("Parsed rtable update entry: %d, %d hops\n", curid, curhops);
-		if(curid != link->id)	update_rtable_entry(curid, curhops, link);	
+		if(curid != link->id)	
+			update_rtable_entry(curid, curhops, link);	
 	}
 
 	return 0;

@@ -3,25 +3,34 @@
 
 LINK *link;
 
+uint8_t msg_src_expected = 3;
+uint8_t msg_dst = 2;
+
 void mframe_parser(FRAME frame)
 {
+  if(frame.src != msg_src_expected)
+  {
+    printf("Unexpected frame from %d\n", frame.src);
+    print_frame(frame);
+    return;
+  }
+  
   if(strncmp(frame.payload, "!PING", 5) == 0)
   {
     printf("Ping from %u\n", frame.src);
-    create_send_frame(link->id, frame.src, 5, "!PONG", link);
+    create_send_frame(link->id, msg_dst, 5, "!PONG", link);
   }
   else if(strncmp(frame.payload, "!PONG", 5) == 0)
   {
     printf("Pong from %u\n", frame.src);
-    create_send_frame(link->id, frame.src, 5, "!PING", link);
+    create_send_frame(link->id, msg_dst, 5, "!PING", link);
   }
   else
   {
     printf("UNKNOWN from %u\n", frame.src);
     print_frame(frame);
   }
-
-  delay(1000);
+  delay(500);
 
 }
 
@@ -35,7 +44,7 @@ void setup()
   send_join_msg(link->id, link);
 
   //Initial
-  create_send_frame(link->id, 2, 5, "!PING", link);
+  create_send_frame(link->id, msg_dst, 5, "!PING", link);
 }
 
 

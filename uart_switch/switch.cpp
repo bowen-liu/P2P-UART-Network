@@ -169,7 +169,7 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
   }
 
   //Forward the frame
-  printf("src: %u, dst: %u, outlink: %u\n", src, dest, i);
+  printf("src: %u, dst: %u, olnk: %u\n", src, dest, i);
   add_to_send_queue(raw, &links[i]);
 
 }

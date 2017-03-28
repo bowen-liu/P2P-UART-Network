@@ -74,6 +74,7 @@ uint8_t broadcast(FRAME frame)
 
     //Change the destination to the current endpoint and transmit
     send_frame(frame, &links[i]);
+    free(frame.payload);
     ++sent_count;
   }
 
@@ -148,7 +149,7 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
     free(raw.buf);
 
     printf("Bcast from %u. ", frame.src);
-    printf("Forwarded to %d links\n", broadcast(frame));
+    printf("Forwarded to %u links\n", broadcast(frame));
     free(frame.payload);
     return;
   }

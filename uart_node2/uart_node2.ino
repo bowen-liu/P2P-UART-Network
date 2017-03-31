@@ -13,6 +13,7 @@
 #define MSG_DST  3
 
 //Others
+#define NET_INIT_DELAY 1000
 #define LED_PERIOD 2000
 
 LINK *link;
@@ -111,6 +112,7 @@ void setup()
   stdout_uart_init();
 
   //Setup the network
+  delay(NET_INIT_DELAY);                  //Give the switch a bit of time to initialize
   link = node_init(MY_ID, mframe_parser);
   send_join_msg(link->id, link);
 

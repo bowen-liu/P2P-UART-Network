@@ -13,6 +13,7 @@
 #define MSG_DST  1
 
 //Misc
+#define NET_INIT_DELAY 1000
 #define LED_PERIOD 2000
 
 LINK *link;
@@ -22,7 +23,6 @@ uint8_t led_on = 1;
 uint8_t led_intensity = 128;
 
 
-//Tosend: 0 = update LED only; 1 = send message
 void send_led_msg(uint8_t tosend)
 {
   static unsigned long start_time = 0;
@@ -33,7 +33,10 @@ void send_led_msg(uint8_t tosend)
     return;
 
   if(tosend)
+  {
     start_time = millis();
+    return;
+  }
 
   if(start_time > 0 && current - start_time < LED_PERIOD)
     return;
@@ -109,6 +112,7 @@ void setup()
   stdout_uart_init();
 
   //Setup the network
+  delay(NET_INIT_DELAY);                  //Give the switch a bit of time to initialize
   link = node_init(MY_ID, mframe_parser);
   send_join_msg(link->id, link);
 
@@ -122,7 +126,6 @@ void loop()
   net_task(0);
   send_led_msg(0);
 }
-
 
 
 

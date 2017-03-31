@@ -349,6 +349,8 @@ uint8_t transmit_next(LINK *link)
   return i;
 }
 
+
+//IMPORTANT: User must free frame.payload MANUALLY when using any of these 3 functions!
 uint8_t send_frame(FRAME frame, LINK *link)
 {
 	return add_to_send_queue(frame_to_raw(frame), link);

@@ -1,4 +1,4 @@
-#include "switch.h"
+#include <switch.h>
 #include <uart_stdout.h>
 
 

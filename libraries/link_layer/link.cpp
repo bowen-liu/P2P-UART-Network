@@ -1,7 +1,6 @@
 /*This file must be declared as a .cpp file since it uses the HardwareSerial Object from Arduino's library*/
 #include "link.h"
 
-
 void link_init(HardwareSerial *port, uint8_t my_id, LINK_TYPE link_type, LINK *link)
 {
   link->port = port;
@@ -480,7 +479,7 @@ uint8_t send_join_msg(uint8_t my_id, LINK *link)
 
 
 
-uint8_t send_leave_msg(uint8_t id, uchar reason, LINK *link)
+uint8_t send_leave_msg(uint8_t id, uint8_t reason, LINK *link)
 {
 	uint8_t pl_size = LINK_MSG_SIZE + 1;		//Buffer for preamble + reason 
 	uchar msg[pl_size];		
@@ -489,7 +488,7 @@ uint8_t send_leave_msg(uint8_t id, uchar reason, LINK *link)
 	strncpy(msg, LEAVE_PREAMBLE, LINK_MSG_SIZE);
 	
 	//Append leave reason
-	msg[LINK_MSG_SIZE] = reason;
+	msg[LINK_MSG_SIZE] = (uchar)reason;
 	
 	/*
 	printf("Leave msg:");
@@ -549,6 +548,15 @@ uint8_t send_rtble_msg(uint8_t dst, LINK *link)
 }
 
 
+uint8_t send_reqrt_msg(uint8_t dst, LINK *link)
+{
+	printf("Sending REQRT to %d\n", dst);
+	create_send_cframe(link->id, dst, LINK_MSG_SIZE, ROUTING_PREAMBLE, link);
+	
+	return 0;
+}
+
+
 /***************************
 PARSING
 ***************************/
@@ -565,6 +573,9 @@ uint8_t parse_hello_msg(FRAME frame, LINK *link)
 	uint8_t reply = 0;				//0 = nothing, 1 = reply, 2 = resend 
 	
 	printf("Received PROBE from %d, type: %c , msg_id: %hu, ", end_id, end_type, msg_id);
+	
+	//call user's handler
+	hello_handler(end_id);
 	
 	//First time hearing from the other end of the link
 	if(link->end_link_type == UNKNOWN)
@@ -621,6 +632,9 @@ uint8_t parse_join_msg(FRAME frame, LINK *link)
 	uint8_t new_id = frame.src;
 	uint8_t new_hops = (uint8_t)frame.payload[LINK_MSG_SIZE];
 	
+	//call user's handler
+	join_handler(new_id);
+	
 	//Add the node's routing information to the table. The same index as its ID is used.
 	update_rtable_entry(new_id, new_hops, link);
 	printf("Received NJOIN from %d, %d hops\n", new_id, link->rtable[new_id].hops);
@@ -638,11 +652,14 @@ uint8_t parse_join_msg(FRAME frame, LINK *link)
 uint8_t parse_leave_msg(FRAME frame, LINK *link)
 {
 	uint8_t leave_id = frame.src;
-	uchar reason = (uint8_t)frame.payload[LINK_MSG_SIZE];
+	uint8_t reason = (uint8_t)frame.payload[LINK_MSG_SIZE];
+	
+	//call user's handler
+	leave_handler(leave_id, reason);
 	
 	//Remove the node's routing information to the table. The same index as its ID is used.
 	update_rtable_entry(leave_id, 0, link);
-	printf("Received LEAVE from %d, %c\n", leave_id, reason);
+	printf("Received LEAVE from %u, %u\n", leave_id, reason);
 	
 	//TODO: If switch, forward the packet to everyone else. Implement in the switch code
 	
@@ -654,6 +671,9 @@ uint8_t parse_rtble_msg(FRAME frame, LINK *link)
 {
 	uint8_t entries = (uint8_t)frame.payload[LINK_MSG_SIZE];
 	uint8_t i, curid, curhops, readidx;
+	
+	//call user's handler
+	rtble_handler(frame.src, entries, frame.payload);
 	
 	//Switches do not parse anyone else's routing table
 	if(link->link_type == GATEWAY) 
@@ -675,6 +695,20 @@ uint8_t parse_rtble_msg(FRAME frame, LINK *link)
 	}
 
 	return 0;
+}
+
+
+
+uint8_t parse_reqrt_msg(FRAME frame, LINK *link)
+{
+	//call user's handler
+	reqrt_handler(frame.src);
+	
+	//Reply with the current routing table.
+	printf("Received REQRT from %d, %d hops\n", frame.src);
+	send_rtble_msg(frame.src, link);
+	
+	return 1;
 }
 
 
@@ -702,8 +736,14 @@ CMSG_T parse_control_frame(FRAME frame, LINK *link)
 	}
 	else if(strncmp(frame.payload, ROUTING_PREAMBLE, LINK_MSG_SIZE) == 0)
 	{
-		printf("Found ROUTE message!\n");
+		printf("Found RTBLE message!\n");
 		parse_rtble_msg(frame, link);
+		return Rtble_Frame;
+	}
+	else if(strncmp(frame.payload, REQRT_PREAMBLE, LINK_MSG_SIZE) == 0)
+	{
+		printf("Found REQRT message!\n");
+		parse_reqrt_msg(frame, link);
 		return Rtble_Frame;
 	}
 	else if(strncmp(frame.payload, LEAVE_PREAMBLE, LINK_MSG_SIZE) == 0)

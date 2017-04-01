@@ -1,11 +1,6 @@
-
 #include "node.h"
 
 static LINK link;
-
-//Function Pointers to certain actions provided bt the user
-void (*message_parser)(FRAME); 
-
 
 /******************************/
 //Node functions
@@ -27,7 +22,7 @@ void proc_frame(FRAME frame, LINK *link)
     printf("Broadcasting Packet!\n");
 
   //Call the user's message parser
-  message_parser(frame);
+  message_handler(frame);
   free(frame.payload);
   return;
 
@@ -48,7 +43,7 @@ LINK* node_init(uint8_t id, void (*mparser)(FRAME))
   link_init(&Serial1, id, ENDPOINT, &link);
 
   //Set the message parser
-  message_parser = mparser;
+  set_message_handler(mparser);
 
   //Send out a HELLO message out onto the link
   send_hello(link.id, 0, &link);

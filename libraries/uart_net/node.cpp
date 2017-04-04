@@ -36,7 +36,7 @@ void proc_frame(FRAME frame, LINK *link)
 //main
 /******************************/
 
-LINK* node_init(uint8_t id, void (*mparser)(FRAME))
+LINK* node_init(uint8_t id, int8_t (*mparser)(FRAME))
 {
   //Initializing transport layer data for serial1
   Serial1.begin(115200);

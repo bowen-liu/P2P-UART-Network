@@ -9,7 +9,7 @@
 
 //LINK link;
 
-LINK* node_init(uint8_t id, void (*mparser)(FRAME));
+LINK* node_init(uint8_t id, int8_t (*mparser)(FRAME));
 void net_task(uint8_t continuous);
 
 

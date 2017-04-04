@@ -575,7 +575,8 @@ uint8_t parse_hello_msg(FRAME frame, LINK *link)
 	printf("Received PROBE from %d, type: %c , msg_id: %hu, ", end_id, end_type, msg_id);
 	
 	//call user's handler
-	hello_handler(end_id);
+	if(hello_handler(end_id) < 0)
+		return 0;
 	
 	//First time hearing from the other end of the link
 	if(link->end_link_type == UNKNOWN)
@@ -633,7 +634,8 @@ uint8_t parse_join_msg(FRAME frame, LINK *link)
 	uint8_t new_hops = (uint8_t)frame.payload[LINK_MSG_SIZE];
 	
 	//call user's handler
-	join_handler(new_id);
+	if(join_handler(new_id) < 0)
+		return 0;
 	
 	//Add the node's routing information to the table. The same index as its ID is used.
 	update_rtable_entry(new_id, new_hops, link);
@@ -655,7 +657,8 @@ uint8_t parse_leave_msg(FRAME frame, LINK *link)
 	uint8_t reason = (uint8_t)frame.payload[LINK_MSG_SIZE];
 	
 	//call user's handler
-	leave_handler(leave_id, reason);
+	if(leave_handler(leave_id, reason) < 0)
+		return 0;
 	
 	//Remove the node's routing information to the table. The same index as its ID is used.
 	update_rtable_entry(leave_id, 0, link);
@@ -673,11 +676,13 @@ uint8_t parse_rtble_msg(FRAME frame, LINK *link)
 	uint8_t i, curid, curhops, readidx;
 	
 	//call user's handler
-	rtble_handler(frame.src, entries, frame.payload);
+	if(rtble_handler(frame.src, entries, frame.payload) < 0)
+		return 0;
+	
 	
 	//Switches do not parse anyone else's routing table
 	if(link->link_type == GATEWAY) 
-		return;
+		return 0;
 	
 	printf("Received RTBLE with %d entries!\n", entries);
 	
@@ -694,7 +699,7 @@ uint8_t parse_rtble_msg(FRAME frame, LINK *link)
 			update_rtable_entry(curid, curhops, link);	
 	}
 
-	return 0;
+	return 1;
 }
 
 
@@ -702,7 +707,8 @@ uint8_t parse_rtble_msg(FRAME frame, LINK *link)
 uint8_t parse_reqrt_msg(FRAME frame, LINK *link)
 {
 	//call user's handler
-	reqrt_handler(frame.src);
+	if(reqrt_handler(frame.src) < 0)
+		return 0;
 	
 	//Reply with the current routing table.
 	printf("Received REQRT from %d, %d hops\n", frame.src);

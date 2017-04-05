@@ -2,10 +2,8 @@
 #define _UARTNET_NODEH_
 
 //#include "link_layer/link.h"
-#include <frame.h>
 #include <link.h>
 
-#include <TimerOne.h>
 
 //LINK link;
 

@@ -118,6 +118,16 @@ size_t check_new_bytes(LINK *link)
   bytes = link->port->readBytes(tempbuf, bytes);
   
   //Make sure we're not overflowing the buffer
+  if(link->rbuf_writeidx + bytes > RECV_BUFFER_SIZE)
+  {
+    printf("***too big! cur_idx: %d bytes_pending: %d\n", link->rbuf_writeidx, bytes);
+	
+	//flush the buffer and then try again
+	printf("Flushing %d bytes of unknown raw chunk \n", link->rbuf_writeidx);
+    link->rbuf_writeidx = 0;
+  }
+  
+  //Double check just to be safe?
   if (link->rbuf_writeidx + bytes < RECV_BUFFER_SIZE)
   {
     proc_buf(tempbuf, bytes, link);
@@ -125,11 +135,7 @@ size_t check_new_bytes(LINK *link)
     return bytes;
   }
   else
-  {
-    //TODO: This part needs more througho testing, and doesn't seem to be working properly
-    printf("***too big! cur_idx: %d bytes_pending: %d\n", link->rbuf_writeidx, bytes);
     return 0;
-  }
 }
 
 
@@ -396,13 +402,69 @@ uint8_t update_rtable_entry(uint8_t id, uint8_t hops, LINK *link)
 }
 
 
+uint8_t find_successor(uint8_t id, LINK *link)
+{
+	int i;
+	
+	if(link->rtable_entries == 0)
+		return 0;
+	
+	if(id == MAX_ADDRESS)
+		return 0;
+	
+	//Find the lowest valid ID starting from the end of the rtable
+	for(i = id; i < RTABLE_LENGTH; i++)
+	{
+		if(link->rtable[i].hops > 0)
+		{
+			printf("Sucessor ID: %u\n", i);
+			return i;
+		}
+	}
+	
+	//Didn't find any nodes in this range?
+	if(i == MAX_ADDRESS)
+	{
+		printf("Successor ID: 0 (cannot find)\n");
+		return 0;
+	}
+}
+
+
+uint8_t find_predecessor(uint8_t id, LINK *link)
+{
+	int i;
+	
+	if(link->rtable_entries <= 0)
+		return 0;
+	
+	if(id >= MAX_ADDRESS)
+		id = MAX_ADDRESS - 1;
+	
+	//Find the highest valid ID starting from the end of the rtable
+	for(i = id; i > 0; i--)
+	{
+		if(link->rtable[i].hops > 0)
+		{
+			printf("HIGHEST ID: %u\n", i);
+			break;
+		}
+	}
+	
+	//Will return 0 if no nodes are found in the range
+	return i;
+}
+
+
+
+
 /***************************
 SENDING
 ***************************/
 
-uint8_t send_hello_msg(uint8_t my_id, uint8_t dst_id, uint16_t msg_id, LINK *link)
+uint8_t send_hello_msg(uint8_t my_id, uint8_t dst_id, LINK *link)
 {	
-	uint8_t pl_size = LINK_MSG_SIZE + 1 + 2;		//Buffer for preamble + type + identifier
+	uint8_t pl_size = LINK_MSG_SIZE + 1;		//Buffer for preamble + type 
 	uchar msg[pl_size];		
 
 	//Copy the preamble string to the payload
@@ -423,9 +485,7 @@ uint8_t send_hello_msg(uint8_t my_id, uint8_t dst_id, uint16_t msg_id, LINK *lin
 		default:
 			msg[LINK_MSG_SIZE] = 0;
 	}
-	
-	//Append the last 2 bytes of the current timestamp to the packet as an identifier
-	memcpy(&msg[LINK_MSG_SIZE+1], &msg_id, sizeof(msg_id));
+
 	
 	/*
 	printf("Probe msg:");
@@ -442,12 +502,10 @@ uint8_t send_hello_msg(uint8_t my_id, uint8_t dst_id, uint16_t msg_id, LINK *lin
 
 uint8_t send_hello(uint8_t my_id, uint8_t dst_id, LINK *link)
 {
-	uint16_t msg_id;
 	
 	link->rtable[dst_id].last_ping_sent = millis();
-	msg_id = (uint16_t)link->rtable[dst_id].last_ping_sent;
 	
-	return send_hello_msg(my_id, 0, msg_id, link);
+	return send_hello_msg(my_id, 0, link);
 }
 
 
@@ -548,6 +606,7 @@ uint8_t send_rtble_msg(uint8_t dst, LINK *link)
 }
 
 
+
 uint8_t send_reqrt_msg(uint8_t dst, LINK *link)
 {
 	printf("Sending REQRT to %d\n", dst);
@@ -565,18 +624,13 @@ uint8_t parse_hello_msg(FRAME frame, LINK *link)
 {
 	uint8_t end_id = frame.src;
 	uchar end_type = frame.payload[LINK_MSG_SIZE];
-	uint16_t msg_id = *((uint16_t*)(&frame.payload[LINK_MSG_SIZE+1]));
 	
 	unsigned long recv_time = millis();
 	int rtt;
 	uint16_t rtable_idx = end_id;
 	uint8_t reply = 0;				//0 = nothing, 1 = reply, 2 = resend 
 	
-	printf("Received PROBE from %d, type: %c , msg_id: %hu, ", end_id, end_type, msg_id);
-	
-	//call user's handler
-	if(hello_handler(end_id) < 0)
-		return 0;
+	printf("Received PROBE from %d, type: %c ", end_id, end_type);
 	
 	//First time hearing from the other end of the link
 	if(link->end_link_type == UNKNOWN)
@@ -624,6 +678,11 @@ uint8_t parse_hello_msg(FRAME frame, LINK *link)
 	
 	link->rtable[rtable_idx].last_ping_recvd = recv_time;
 	
+	
+	//call user's handler
+	hello_handler(frame);
+
+	
 	return 1;
 }
 
@@ -633,18 +692,16 @@ uint8_t parse_join_msg(FRAME frame, LINK *link)
 	uint8_t new_id = frame.src;
 	uint8_t new_hops = (uint8_t)frame.payload[LINK_MSG_SIZE];
 	
-	//call user's handler
-	if(join_handler(new_id) < 0)
-		return 0;
-	
 	//Add the node's routing information to the table. The same index as its ID is used.
 	update_rtable_entry(new_id, new_hops, link);
 	printf("Received NJOIN from %d, %d hops\n", new_id, link->rtable[new_id].hops);
 	
 	//TODO: If switch, forward the packet to everyone else. Implement in the switch code
+	//Reply with the current routing table If I'm the switch. 
+
 	
-	//Reply with the current routing table. //TODO: Reply all routing tables
-	send_rtble_msg(new_id, link);
+	//call user's handler
+	join_handler(frame);
 	
 	return 1;
 }
@@ -656,15 +713,15 @@ uint8_t parse_leave_msg(FRAME frame, LINK *link)
 	uint8_t leave_id = frame.src;
 	uint8_t reason = (uint8_t)frame.payload[LINK_MSG_SIZE];
 	
-	//call user's handler
-	if(leave_handler(leave_id, reason) < 0)
-		return 0;
 	
 	//Remove the node's routing information to the table. The same index as its ID is used.
 	update_rtable_entry(leave_id, 0, link);
 	printf("Received LEAVE from %u, %u\n", leave_id, reason);
 	
 	//TODO: If switch, forward the packet to everyone else. Implement in the switch code
+	
+	//call user's handler
+	leave_handler(frame);
 	
 	return 1;
 }
@@ -673,12 +730,7 @@ uint8_t parse_leave_msg(FRAME frame, LINK *link)
 uint8_t parse_rtble_msg(FRAME frame, LINK *link)
 {
 	uint8_t entries = (uint8_t)frame.payload[LINK_MSG_SIZE];
-	uint8_t i, curid, curhops, readidx;
-	
-	//call user's handler
-	if(rtble_handler(frame.src, entries, frame.payload) < 0)
-		return 0;
-	
+	uint8_t i, curid, curhops, readidx;		
 	
 	//Switches do not parse anyone else's routing table
 	if(link->link_type == GATEWAY) 
@@ -698,7 +750,10 @@ uint8_t parse_rtble_msg(FRAME frame, LINK *link)
 		if(curid != link->id)	
 			update_rtable_entry(curid, curhops, link);	
 	}
-
+	
+	//Call User's handler
+	rtble_handler(frame);
+	
 	return 1;
 }
 
@@ -706,13 +761,13 @@ uint8_t parse_rtble_msg(FRAME frame, LINK *link)
 
 uint8_t parse_reqrt_msg(FRAME frame, LINK *link)
 {
-	//call user's handler
-	if(reqrt_handler(frame.src) < 0)
-		return 0;
 	
 	//Reply with the current routing table.
 	printf("Received REQRT from %d, %d hops\n", frame.src);
 	send_rtble_msg(frame.src, link);
+	
+	//call user's handler
+	reqrt_handler(frame);
 	
 	return 1;
 }

@@ -51,6 +51,26 @@ void timer1_isr()
 //Switch Functions
 /******************************/
 
+uint8_t create_send_cframe_switch(uint8_t src, uint8_t dst, uint8_t size, uchar *payload)
+{
+	int i;
+	
+	//Find which port is the dst reachable at
+  for (i = 0; i < TOTAL_LINKS; i++)
+  {
+    if (links[i].rtable[dst].hops > 0)
+      break;
+    else if (i == TOTAL_LINKS - 1)
+    {
+      printf("Could not locate node %d in any routing tables! Dropping...\n", dst);
+      return;
+    }
+  }
+  
+  //Send out the frame
+  create_send_cframe(src, dst, size, payload, &links[i]);
+}
+
 uint8_t broadcast(FRAME frame)
 {
   uint8_t i, j;
@@ -62,7 +82,8 @@ uint8_t broadcast(FRAME frame)
   {
     //Do not forward if the other end of the link is uninitialized, or the other end of the link is only the sender
     //if (links[i].end_link_type == UNKNOWN ||(links[i].rtable[frame.src].hops == 1 && links[i].rtable_entries == 1))
-    //Do not forward if the other end of the link is uninitialized, or the other end of the link can reach the sender
+    
+	//Do not forward if the other end of the link is uninitialized, or the other end of the link can reach the sender
     if (links[i].end_link_type == UNKNOWN || links[i].rtable[frame.src].hops > 0)
       continue;
 
@@ -103,6 +124,64 @@ void reset_tick(uint8_t id)
 }
 
 
+//Send rtable with entries from multiple links
+uint8_t send_rtbles_msg(uint8_t dst)
+{
+	uint8_t i, j, writeidx;
+	uint8_t entries_added = 0;
+	uint8_t total_entries = 0;
+	uint8_t pl_size;
+	
+	//Calculate number of entries
+	for(i=0; i<TOTAL_LINKS; i++)
+		total_entries += links[i].rtable_entries;
+	
+	//Calculate the Payload size
+	pl_size = LINK_MSG_SIZE + 1 + total_entries * NODE_LENGTH;
+	
+	//Buffer for preamble + entries
+	uchar msg[pl_size];		
+	
+	//Copy the preamble string to the payload
+	strncpy(msg, ROUTING_PREAMBLE, LINK_MSG_SIZE);
+	
+	//Append the number of routing entries that follows
+	msg[LINK_MSG_SIZE] = total_entries;
+	
+	//Append each of the node information to the payload
+	for(i=0; i<TOTAL_LINKS; i++)
+	{
+		for(j=0; j<RTABLE_LENGTH; j++)
+		{
+			if(links[i].rtable[j].hops > 0)
+			{
+				//Increment the write index for the payload
+				writeidx = LINK_MSG_SIZE + 1 + NODE_LENGTH*(entries_added++);
+				
+				//Write the ID
+				msg[writeidx] = (uint8_t)j;
+				
+				//Write and increment the hops
+				msg[writeidx + 1] = (uint8_t)(links[i].rtable[j].hops + 1);
+			}
+		}
+	}
+	
+	
+	printf("Written %d entries. Should be %d\n", entries_added, total_entries);
+	print_bytes(msg, pl_size);
+	printf("\n");
+	
+	
+	//Create and send out an "RTBLE" message
+	printf("Sending RTBLE to %d\n", dst);
+	create_send_cframe_switch(0, dst, pl_size, msg);
+	
+	return 0;
+}
+
+
+
 void proc_raw_frames(RAW_FRAME raw, LINK *link)
 {
   uint16_t preamble = *((uint16_t*)&raw.buf[0]);
@@ -128,7 +207,10 @@ void proc_raw_frames(RAW_FRAME raw, LINK *link)
     //Broadcast Join frames
     if (retval == Join_Frame)
     {
-      printf("Broadcasting JOIN frame to all other nodes\n");
+      //Reply the sender with a complete routing table
+	  send_rtbles_msg(frame.src);
+	  
+	  printf("Broadcasting JOIN frame to all other nodes\n");
 
       //Add 1 to hops
       int hops = *((uint8_t*)&frame.payload[LINK_MSG_SIZE]);
@@ -205,6 +287,12 @@ uint8_t read_serial_raw(LINK *link)
   return frames_received;
 }
 
+/******************************/
+//Cframe handlers for switch
+/******************************/
+
+
+
 
 /******************************/
 //main
@@ -225,6 +313,8 @@ void switch_init()
   link_init(&Serial1, 0, GATEWAY, &links[0]);
   link_init(&Serial2, 0, GATEWAY, &links[1]);
   link_init(&Serial3, 0, GATEWAY, &links[2]);
+  
+
 
   //Send out a HELLO message out onto the link
   //send_hello(0, 0, &links[0]);

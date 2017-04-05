@@ -137,12 +137,14 @@ uint8_t add_to_send_queue(RAW_FRAME raw, LINK *link);
 uint8_t transmit_next(LINK *link);
 uint8_t send_frame(FRAME frame, LINK *link);
 uint8_t create_send_frame(uint8_t src, uint8_t dst, uint8_t size, uchar *payload, LINK *link);
-
+uint8_t create_send_cframe(uint8_t src, uint8_t dst, uint8_t size, uchar *payload, LINK *link);
 
 //rOUTING fUNCTIONS
 
 CMSG_T parse_control_frame(FRAME frame, LINK *link);
 uint8_t update_rtable_entry(uint8_t id, uint8_t hops, LINK *link);
+uint8_t find_successor(uint8_t id, LINK *link);
+uint8_t find_predecessor(uint8_t id, LINK *link);
 
 
 uint8_t send_hello(uint8_t my_id, uint8_t dst_id, LINK *link);

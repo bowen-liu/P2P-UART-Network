@@ -3,32 +3,32 @@
 
 //Set the pointers
 
-void set_message_handler(int8_t (*handler_ptr)(FRAME))
+void set_message_handler(void (*handler_ptr)(FRAME))
 {
 	message_handler = handler_ptr;
 }
 
-void set_hello_handler(int8_t (*handler_ptr)(uint8_t))
+void set_hello_handler(void (*handler_ptr)(FRAME))
 {
 	hello_handler = handler_ptr;
 }
 
-void set_join_handler(int8_t (*handler_ptr)(uint8_t))
+void set_join_handler(void (*handler_ptr)(FRAME))
 {
 	join_handler = handler_ptr;
 }
 
-void set_leave_handler(int8_t (*handler_ptr)(uint8_t, uint8_t))
+void set_leave_handler(void (*handler_ptr)(FRAME))
 {
 	leave_handler = handler_ptr;
 }
 
-void set_rtble_handler(int8_t (*handler_ptr)(uint8_t, uint8_t, uchar*))
+void set_rtble_handler(void (*handler_ptr)(FRAME))
 {
 	rtble_handler = handler_ptr;
 }
 
-void set_reqrt_handler(int8_t (*handler_ptr)(uint8_t))
+void set_reqrt_handler(void (*handler_ptr)(FRAME))
 {
 	reqrt_handler = handler_ptr;
 }
@@ -36,32 +36,32 @@ void set_reqrt_handler(int8_t (*handler_ptr)(uint8_t))
 
 //Default handlers
 
-void message_handler_default(uint8_t src_id)
+void message_handler_default(FRAME frame)
 {
 	return 0;
 }
 
-void hello_handler_default(uint8_t src_id)
+void hello_handler_default(FRAME frame)
 {
 	return 0;
 }
 
-void join_handler_default(uint8_t src_id)
+void join_handler_default(FRAME frame)
 {
 	return 0;
 }
 
-void leave_handler_default(uint8_t src_id)
+void leave_handler_default(FRAME frame)
 {
 	return 0;
 }
 
-void rtble_handler_handler(uint8_t src_id, uint8_t rtble_length, uchar* raw_payload)
+void rtble_handler_default(FRAME frame)
 {
 	return 0;
 }
 
-void reqrt_handler_handler(uint8_t src_id)
+void reqrt_handler_default(FRAME frame)
 {
 	return 0;
 }
@@ -69,11 +69,11 @@ void reqrt_handler_handler(uint8_t src_id)
 
 //Initialize all handlers with default handlers
 
-int8_t (*message_handler)(FRAME) 					= message_handler_default; 
-int8_t (*hello_handler)(uint8_t) 					= hello_handler_default;
-int8_t (*join_handler)(uint8_t)						= join_handler_default;
-int8_t (*leave_handler)(uint8_t, uint8_t)			= leave_handler_default;
-int8_t (*rtble_handler)(uint8_t, uint8_t, uchar*)	= rtble_handler_handler;
-int8_t (*reqrt_handler)(uint8_t)					= reqrt_handler_handler;
+void (*message_handler)(FRAME) 					= message_handler_default; 
+void (*hello_handler)(FRAME) 					= hello_handler_default;
+void (*join_handler)(FRAME)					= join_handler_default;
+void (*leave_handler)(FRAME)			= leave_handler_default;
+void (*rtble_handler)(FRAME)	= rtble_handler_default;
+void (*reqrt_handler)(FRAME)					= reqrt_handler_default;
 
 

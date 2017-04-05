@@ -3,7 +3,7 @@
 #ifndef _UARTNET_LINK_ROUTINGH_
 #define _UARTNET_LINK_ROUTINGH_
 
-#include "link_common.h"
+#include <link_common.h>
 #include "cframe_callback.h"
 
 
@@ -48,14 +48,16 @@ Active Monitorings
 
 
 /*******************************
-Functions
+User Functions?
 *******************************/
-
 CMSG_T parse_control_frame(FRAME frame, LINK *link);
-uint8_t update_rtable_entry(uint8_t id, uint8_t hops, LINK *link);
 uint8_t find_successor(uint8_t id, LINK *link);
 uint8_t find_predecessor(uint8_t id, LINK *link);
 
+
+/*******************************
+Sending Control Frames
+*******************************/
 
 uint8_t send_hello(uint8_t my_id, uint8_t dst_id, LINK *link);
 //uint8_t send_hello_msg(uint8_t my_id, uint8_t dst_id, LINK *link);
@@ -63,13 +65,5 @@ uint8_t send_join_msg(uint8_t my_id, LINK *link);
 uint8_t send_leave_msg(uint8_t id, uint8_t reason, LINK *link);
 uint8_t send_rtble_msg(uint8_t dst, LINK *link);
 uint8_t send_reqrt_msg(uint8_t dst, LINK *link);
-
-
-uint8_t parse_probe_msg(FRAME frame, LINK *link);
-uint8_t parse_join_msg(FRAME frame, LINK *link);
-uint8_t parse_rtble_msg(FRAME frame, LINK *link);
-uint8_t parse_leave_msg(FRAME frame, LINK *link);
-uint8_t parse_reqrt_msg(FRAME frame, LINK *link);
-
 
 #endif
